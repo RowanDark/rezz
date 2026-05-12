@@ -47,5 +47,6 @@ func init() {
 	flags.StringVar(&cfg.Format, "format", "txt", "Output format: txt, json, csv, md")
 	flags.BoolVar(&cfg.Headless, "headless", true, "Use headless browser (playwright-go)")
 	flags.BoolVar(&noHeadless, "no-headless", false, "Disable headless, use net/http instead")
+	flags.IntVar(&cfg.Delay, "delay", 500, "Delay in ms between requests")
 	flags.BoolVar(&cfg.Verbose, "verbose", false, "Verbose logging")
 }

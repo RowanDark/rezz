@@ -8,6 +8,7 @@ A modern web wordlist generator written in Go. Conceptually similar to CeWL but 
 v0x --url <target> [flags]
 
 Flags:
+      --delay int             Delay in ms between requests (default 500)
       --depth int             Max crawl depth (default 2)
       --format string         Output format: txt, json, csv, md (default "txt")
       --headless              Use headless browser via playwright-go (default true)
@@ -23,6 +24,21 @@ Flags:
 
 ```bash
 go build -o v0x .
+```
+
+## Browser setup (headless mode)
+
+Headless mode requires Chromium binaries managed by playwright-go.
+Run once after cloning:
+
+```bash
+make install-browsers
+```
+
+or manually:
+
+```bash
+go run github.com/playwright-community/playwright-go/cmd/playwright install --with-deps chromium
 ```
 
 ## Project layout
