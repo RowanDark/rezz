@@ -92,6 +92,25 @@ func TestExtractJSONLD(t *testing.T) {
 	}
 }
 
+func TestAdjacentBlockElements(t *testing.T) {
+	html := `<html><body><h1>Foo Bar</h1><p>Baz Qux</p></body></html>`
+	r := Extract(html, testCfg)
+	wordSet := make(map[string]struct{})
+	for _, w := range r.Words {
+		wordSet[w] = struct{}{}
+	}
+	for _, expected := range []string{"foo", "bar", "baz", "qux"} {
+		if _, ok := wordSet[expected]; !ok {
+			t.Errorf("expected word %q in output", expected)
+		}
+	}
+	for _, fused := range []string{"barfoo", "barbaz", "foobaz"} {
+		if _, ok := wordSet[fused]; ok {
+			t.Errorf("fused token %q must not appear in output", fused)
+		}
+	}
+}
+
 func TestAggregator(t *testing.T) {
 	agg := NewAggregator()
 	agg.Add(Result{
