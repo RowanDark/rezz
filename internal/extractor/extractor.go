@@ -17,24 +17,27 @@ var wordSplitter = regexp.MustCompile(`\W+`)
 
 // Result holds extracted data from one or more pages.
 type Result struct {
-	Words  []string
-	Emails []string
-	Meta   map[string]string
+	Words      []string
+	Emails     []string
+	Meta       map[string]string
+	WordSource map[string]string // "body", "meta", or "email"
 }
 
 // Aggregator merges Results from concurrent page extractions.
 type Aggregator struct {
-	mu     sync.Mutex
-	words  map[string]struct{}
-	emails map[string]struct{}
-	meta   map[string]string
+	mu         sync.Mutex
+	words      map[string]struct{}
+	emails     map[string]struct{}
+	meta       map[string]string
+	wordSource map[string]string
 }
 
 func NewAggregator() *Aggregator {
 	return &Aggregator{
-		words:  make(map[string]struct{}),
-		emails: make(map[string]struct{}),
-		meta:   make(map[string]string),
+		words:      make(map[string]struct{}),
+		emails:     make(map[string]struct{}),
+		meta:       make(map[string]string),
+		wordSource: make(map[string]string),
 	}
 }
 
@@ -42,7 +45,16 @@ func (a *Aggregator) Add(r Result) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	for _, w := range r.Words {
-		a.words[w] = struct{}{}
+		if _, exists := a.words[w]; !exists {
+			a.words[w] = struct{}{}
+			src := "body"
+			if r.WordSource != nil {
+				if s, ok := r.WordSource[w]; ok {
+					src = s
+				}
+			}
+			a.wordSource[w] = src
+		}
 	}
 	for _, e := range r.Emails {
 		a.emails[e] = struct{}{}
@@ -69,7 +81,11 @@ func (a *Aggregator) Finalize() Result {
 	for k, v := range a.meta {
 		meta[k] = v
 	}
-	return Result{Words: words, Emails: emails, Meta: meta}
+	wordSource := make(map[string]string, len(a.wordSource))
+	for k, v := range a.wordSource {
+		wordSource[k] = v
+	}
+	return Result{Words: words, Emails: emails, Meta: meta, WordSource: wordSource}
 }
 
 // Extract processes raw HTML and returns words, emails, and metadata.
@@ -83,7 +99,12 @@ func Extract(html string, cfg config.Config) Result {
 	words := extractWords(doc, cfg.MinWordLength)
 	emails := extractEmails(html)
 
-	return Result{Words: words, Emails: emails, Meta: meta}
+	wordSource := make(map[string]string, len(words))
+	for _, w := range words {
+		wordSource[w] = "body"
+	}
+
+	return Result{Words: words, Emails: emails, Meta: meta, WordSource: wordSource}
 }
 
 func extractWords(doc *goquery.Document, minLen int) []string {

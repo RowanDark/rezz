@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"github.com/RowanDark/v0x/internal/config"
+	"github.com/RowanDark/v0x/internal/extractor"
+	"github.com/RowanDark/v0x/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -25,7 +27,35 @@ output formats including txt, json, csv, and markdown.`,
 			cfg.Headless = false
 		}
 		fmt.Fprintf(os.Stderr, "v0x: crawling %s (depth=%d, headless=%v)\n", cfg.URL, cfg.Depth, cfg.Headless)
-		return nil
+
+		formatter, err := output.New(cfg.Format)
+		if err != nil {
+			return err
+		}
+
+		// Placeholder result — real crawl/extract pipeline feeds this.
+		result := extractor.Result{
+			Words:      []string{},
+			Emails:     []string{},
+			Meta:       map[string]string{},
+			WordSource: map[string]string{},
+		}
+		meta := output.OutputMeta{
+			TargetURL:    cfg.URL,
+			PagesCrawled: 0,
+		}
+
+		w := os.Stdout
+		if cfg.Output != "" {
+			f, err := os.Create(cfg.Output)
+			if err != nil {
+				return fmt.Errorf("opening output file: %w", err)
+			}
+			defer f.Close()
+			w = f
+		}
+
+		return formatter.Write(w, result, meta)
 	},
 }
 
