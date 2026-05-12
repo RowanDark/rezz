@@ -1,10 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/RowanDark/v0x/internal/config"
+	"github.com/RowanDark/v0x/internal/crawler"
 	"github.com/RowanDark/v0x/internal/extractor"
 	"github.com/RowanDark/v0x/internal/output"
 	"github.com/spf13/cobra"
@@ -14,8 +19,9 @@ var cfg config.Config
 var noHeadless bool
 
 var rootCmd = &cobra.Command{
-	Use:   "v0x",
-	Short: "v0x is a modern web wordlist generator",
+	Use:          "v0x",
+	Short:        "v0x is a modern web wordlist generator",
+	SilenceUsage: true,
 	Long: `v0x crawls web pages and extracts words to build targeted wordlists.
 It supports headless browser crawling via playwright-go and structured
 output formats including txt, json, csv, and markdown.`,
@@ -26,25 +32,30 @@ output formats including txt, json, csv, and markdown.`,
 		if noHeadless {
 			cfg.Headless = false
 		}
-		fmt.Fprintf(os.Stderr, "v0x: crawling %s (depth=%d, headless=%v)\n", cfg.URL, cfg.Depth, cfg.Headless)
+
+		authStrategyName := "none"
+		switch {
+		case cfg.AuthFormURL != "":
+			authStrategyName = "form"
+		case cfg.AuthBasicUser != "":
+			authStrategyName = "basic"
+		case cfg.AuthCookie != "":
+			authStrategyName = "cookie"
+		case cfg.AuthBearer != "" || cfg.AuthHeader != "":
+			authStrategyName = "bearer"
+		}
+
+		if cfg.Verbose {
+			fmt.Fprintf(os.Stderr, "v0x: crawling %s (depth=%d, headless=%v, auth=%s)\n",
+				cfg.URL, cfg.Depth, cfg.Headless, authStrategyName)
+		}
 
 		formatter, err := output.New(cfg.Format)
 		if err != nil {
 			return err
 		}
 
-		// Placeholder result — real crawl/extract pipeline feeds this.
-		result := extractor.Result{
-			Words:      []string{},
-			Emails:     []string{},
-			Meta:       map[string]string{},
-			WordSource: map[string]string{},
-		}
-		meta := output.OutputMeta{
-			TargetURL:    cfg.URL,
-			PagesCrawled: 0,
-		}
-
+		// Open output writer before crawling — fail fast if we can't write.
 		w := os.Stdout
 		if cfg.Output != "" {
 			f, err := os.Create(cfg.Output)
@@ -55,13 +66,63 @@ output formats including txt, json, csv, and markdown.`,
 			w = f
 		}
 
-		return formatter.Write(w, result, meta)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt)
+		go func() {
+			select {
+			case <-sigCh:
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+
+		c := crawler.New(cfg)
+		pages, err := c.Crawl(ctx, cfg)
+		if err != nil {
+			return fmt.Errorf("starting crawl: %w", err)
+		}
+
+		agg := extractor.NewAggregator()
+		var pagesCrawled int
+
+		g, _ := errgroup.WithContext(ctx)
+		g.Go(func() error {
+			for page := range pages {
+				r := extractor.Extract(page.HTML, cfg)
+				agg.Add(r)
+				pagesCrawled++
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "v0x: page %s — %d words\n", page.URL, len(r.Words))
+				}
+			}
+			return nil
+		})
+
+		if err := g.Wait(); err != nil {
+			return fmt.Errorf("pipeline: %w", err)
+		}
+
+		finalResult := agg.Finalize()
+		meta := output.OutputMeta{
+			TargetURL:    cfg.URL,
+			PagesCrawled: pagesCrawled,
+		}
+
+		if err := formatter.Write(w, finalResult, meta); err != nil {
+			return fmt.Errorf("writing output: %w", err)
+		}
+
+		return nil
 	},
 }
 
 // Execute runs the root command.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, "v0x:", err)
 		os.Exit(1)
 	}
 }
