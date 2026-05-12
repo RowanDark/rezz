@@ -115,8 +115,14 @@ func extractWords(doc *goquery.Document, minLen int) []string {
 	seen := make(map[string]struct{})
 	var words []string
 
-	doc.Find("body").Each(func(_ int, s *goquery.Selection) {
-		text := s.Text()
+	doc.Find("body *").Each(func(_ int, s *goquery.Selection) {
+		if s.Children().Length() != 0 {
+			return
+		}
+		text := strings.TrimSpace(s.Text())
+		if text == "" {
+			return
+		}
 		for _, tok := range wordSplitter.Split(text, -1) {
 			w := strings.ToLower(tok)
 			if len(w) < minLen {
