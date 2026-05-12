@@ -60,6 +60,7 @@ v0x --url https://target.com --no-headless --format md --output report.md
 | `--no-headless` | — | Disable headless; use `net/http` instead |
 | `--user-agent` | `v0x/1.0` | Custom User-Agent string |
 | `--verbose` | `false` | Log pages visited, word counts, and auth strategy |
+| `--timeout` | `5m` | Max crawl duration; `0` disables the timeout |
 | `--auth-form-url` | — | URL of the login form page (headless only) |
 | `--auth-form-user` | — | Username to fill in the login form |
 | `--auth-form-pass` | — | Password to fill in the login form |
