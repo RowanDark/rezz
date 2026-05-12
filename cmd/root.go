@@ -49,4 +49,23 @@ func init() {
 	flags.BoolVar(&noHeadless, "no-headless", false, "Disable headless, use net/http instead")
 	flags.IntVar(&cfg.Delay, "delay", 500, "Delay in ms between requests")
 	flags.BoolVar(&cfg.Verbose, "verbose", false, "Verbose logging")
+
+	// Form-based login (playwright-only)
+	flags.StringVar(&cfg.AuthFormURL, "auth-form-url", "", "URL of the login form page")
+	flags.StringVar(&cfg.AuthFormUser, "auth-form-user", "", "Username to submit in the login form")
+	flags.StringVar(&cfg.AuthFormPass, "auth-form-pass", "", "Password to submit in the login form")
+	flags.StringVar(&cfg.AuthFormUserField, "auth-form-user-field", "username", "Name attribute of the username input")
+	flags.StringVar(&cfg.AuthFormPassField, "auth-form-pass-field", "password", "Name attribute of the password input")
+	flags.StringVar(&cfg.AuthFormSubmit, "auth-form-submit", "[type=submit]", "CSS selector for the submit button")
+
+	// HTTP Basic auth
+	flags.StringVar(&cfg.AuthBasicUser, "auth-basic-user", "", "HTTP Basic auth username")
+	flags.StringVar(&cfg.AuthBasicPass, "auth-basic-pass", "", "HTTP Basic auth password")
+
+	// Cookie injection
+	flags.StringVar(&cfg.AuthCookie, "auth-cookie", "", `Cookie string to inject, e.g. "session=abc; token=xyz"`)
+
+	// Bearer token / custom header
+	flags.StringVar(&cfg.AuthBearer, "auth-bearer", "", "Bearer token for Authorization header")
+	flags.StringVar(&cfg.AuthHeader, "auth-header", "", `Custom auth header in "Name: Value" format`)
 }

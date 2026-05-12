@@ -3,6 +3,7 @@ package crawler
 import (
 	"context"
 
+	"github.com/RowanDark/v0x/internal/auth"
 	"github.com/RowanDark/v0x/internal/config"
 )
 
@@ -19,9 +20,11 @@ type Crawler interface {
 }
 
 // New returns a PlaywrightCrawler when headless mode is enabled, otherwise an HTTPCrawler.
+// The appropriate auth strategy is derived from cfg and wired in automatically.
 func New(cfg config.Config) Crawler {
+	strategy := auth.New(cfg)
 	if cfg.Headless {
-		return &PlaywrightCrawler{}
+		return &PlaywrightCrawler{auth: strategy}
 	}
-	return &HTTPCrawler{}
+	return &HTTPCrawler{auth: strategy}
 }
