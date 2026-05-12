@@ -5,21 +5,30 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/RowanDark/v0x/internal/auth"
 	"github.com/RowanDark/v0x/internal/config"
 )
 
 // HTTPCrawler uses net/http and goquery for static pages that do not require JS.
-type HTTPCrawler struct{}
+type HTTPCrawler struct {
+	auth auth.Strategy
+}
 
 func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page, error) {
 	base, err := url.Parse(cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	// Form auth requires a browser; warn and skip gracefully in HTTP mode.
+	if cfg.AuthFormURL != "" {
+		fmt.Fprintln(os.Stderr, "v0x: warning: --auth-form-* flags are not supported in HTTP mode (--no-headless); form auth will be skipped")
 	}
 
 	client := &http.Client{}
@@ -52,6 +61,10 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 				continue
 			}
 			req.Header.Set("User-Agent", cfg.UserAgent)
+
+			if c.auth != nil {
+				c.auth.ApplyToRequest(req, cfg)
+			}
 
 			resp, err := client.Do(req)
 			if err != nil {

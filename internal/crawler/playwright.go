@@ -7,13 +7,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/RowanDark/v0x/internal/auth"
 	"github.com/RowanDark/v0x/internal/config"
 	"github.com/playwright-community/playwright-go"
 )
 
 // PlaywrightCrawler uses a headless Chromium browser to render pages before
 // extracting links, enabling discovery of dynamically loaded content.
-type PlaywrightCrawler struct{}
+type PlaywrightCrawler struct {
+	auth auth.Strategy
+}
 
 type queueItem struct {
 	url   string
@@ -39,11 +42,32 @@ func (c *PlaywrightCrawler) Crawl(ctx context.Context, cfg config.Config) (<-cha
 		return nil, fmt.Errorf("browser launch: %w", err)
 	}
 
+	// A single shared context preserves session cookies across all crawled pages,
+	// which is necessary for auth strategies to remain effective after login.
+	bctx, err := browser.NewContext(playwright.BrowserNewContextOptions{
+		UserAgent: playwright.String(cfg.UserAgent),
+	})
+	if err != nil {
+		browser.Close()
+		pw.Stop() //nolint:errcheck
+		return nil, fmt.Errorf("browser context: %w", err)
+	}
+
+	if c.auth != nil {
+		if err := c.auth.ApplyToPage(ctx, bctx, cfg); err != nil {
+			bctx.Close()
+			browser.Close()
+			pw.Stop() //nolint:errcheck
+			return nil, fmt.Errorf("auth: %w", err)
+		}
+	}
+
 	pages := make(chan Page)
 	delay := time.Duration(cfg.Delay) * time.Millisecond
 
 	go func() {
 		defer close(pages)
+		defer bctx.Close()
 		defer browser.Close()
 		defer pw.Stop() //nolint:errcheck
 
@@ -64,16 +88,8 @@ func (c *PlaywrightCrawler) Crawl(ctx context.Context, cfg config.Config) (<-cha
 				continue
 			}
 
-			bctx, err := browser.NewContext(playwright.BrowserNewContextOptions{
-				UserAgent: playwright.String(cfg.UserAgent),
-			})
-			if err != nil {
-				continue
-			}
-
 			pg, err := bctx.NewPage()
 			if err != nil {
-				bctx.Close()
 				continue
 			}
 
@@ -82,13 +98,11 @@ func (c *PlaywrightCrawler) Crawl(ctx context.Context, cfg config.Config) (<-cha
 			})
 			if err != nil {
 				pg.Close()
-				bctx.Close()
 				continue
 			}
 
 			html, err := pg.Content()
 			pg.Close()
-			bctx.Close()
 			if err != nil {
 				continue
 			}
