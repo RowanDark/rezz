@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/term"
 
 	"github.com/RowanDark/v0x/internal/config"
 	"github.com/RowanDark/v0x/internal/crawler"
@@ -15,6 +16,19 @@ import (
 	"github.com/RowanDark/v0x/internal/output"
 	"github.com/spf13/cobra"
 )
+
+const banner = `
+┌─────────────────────────────────┐
+│  ██╗   ██╗ ██████╗ ██╗  ██╗    │
+│  ██║   ██║██╔═████╗╚██╗██╔╝    │
+│  ██║   ██║██║██╔██║ ╚███╔╝     │
+│  ╚██╗ ██╔╝████╔╝██║ ██╔██╗     │
+│   ╚████╔╝ ╚██████╔╝██╔╝ ██╗    │
+│    ╚═══╝   ╚═════╝ ╚═╝  ╚═╝    │
+│  wordlist generator  v1.0.0     │
+│  github.com/RowanDark/v0x       │
+└─────────────────────────────────┘
+`
 
 var cfg config.Config
 var noHeadless bool
@@ -27,6 +41,10 @@ var rootCmd = &cobra.Command{
 It supports headless browser crawling via playwright-go and structured
 output formats including txt, json, csv, and markdown.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if !cfg.Quiet && term.IsTerminal(int(os.Stdout.Fd())) {
+			fmt.Fprint(os.Stderr, banner)
+		}
+
 		if cfg.URL == "" {
 			return fmt.Errorf("--url is required")
 		}
@@ -50,7 +68,7 @@ output formats including txt, json, csv, and markdown.`,
 			authStrategyName = "bearer"
 		}
 
-		if cfg.Verbose {
+		if cfg.Verbose && !cfg.Quiet {
 			fmt.Fprintf(os.Stderr, "v0x: crawling %s (depth=%d, headless=%v, auth=%s)\n",
 				cfg.URL, cfg.Depth, cfg.Headless, authStrategyName)
 		}
@@ -105,7 +123,7 @@ output formats including txt, json, csv, and markdown.`,
 				r := extractor.Extract(page.HTML, cfg)
 				agg.Add(r)
 				pagesCrawled++
-				if cfg.Verbose {
+				if cfg.Verbose && !cfg.Quiet {
 					fmt.Fprintf(os.Stderr, "v0x: page %s — %d words\n", page.URL, len(r.Words))
 				}
 			}
@@ -155,6 +173,7 @@ func init() {
 	flags.BoolVar(&noHeadless, "no-headless", false, "Disable headless, use net/http instead")
 	flags.IntVar(&cfg.Delay, "delay", 500, "Delay in ms between requests")
 	flags.BoolVar(&cfg.Verbose, "verbose", false, "Verbose logging")
+	flags.BoolVar(&cfg.Quiet, "quiet", false, "Suppress banner and non-essential output")
 	flags.DurationVar(&cfg.Timeout, "timeout", 5*time.Minute, "Max crawl duration (0 = unlimited)")
 
 	// Form-based login (playwright-only)
