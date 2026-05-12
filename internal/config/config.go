@@ -1,5 +1,7 @@
 package config
 
+import "time"
+
 // Config holds all runtime configuration derived from CLI flags.
 //
 // SECURITY NOTE: Credentials passed via CLI flags (--auth-*) may appear in
@@ -14,6 +16,7 @@ type Config struct {
 	Format        string
 	Headless      bool
 	Verbose       bool
+	Timeout       time.Duration
 
 	// Form-based login
 	AuthFormURL       string

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -69,6 +70,12 @@ output formats including txt, json, csv, and markdown.`,
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
+		if cfg.Timeout > 0 {
+			var timeoutCancel context.CancelFunc
+			ctx, timeoutCancel = context.WithTimeout(ctx, cfg.Timeout)
+			defer timeoutCancel()
+		}
+
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, os.Interrupt)
 		go func() {
@@ -103,6 +110,10 @@ output formats including txt, json, csv, and markdown.`,
 
 		if err := g.Wait(); err != nil {
 			return fmt.Errorf("pipeline: %w", err)
+		}
+
+		if ctx.Err() == context.DeadlineExceeded {
+			fmt.Fprintf(os.Stderr, "v0x: timeout reached after %s — writing partial results\n", cfg.Timeout)
 		}
 
 		finalResult := agg.Finalize()
@@ -140,6 +151,7 @@ func init() {
 	flags.BoolVar(&noHeadless, "no-headless", false, "Disable headless, use net/http instead")
 	flags.IntVar(&cfg.Delay, "delay", 500, "Delay in ms between requests")
 	flags.BoolVar(&cfg.Verbose, "verbose", false, "Verbose logging")
+	flags.DurationVar(&cfg.Timeout, "timeout", 5*time.Minute, "Max crawl duration (0 = unlimited)")
 
 	// Form-based login (playwright-only)
 	flags.StringVar(&cfg.AuthFormURL, "auth-form-url", "", "URL of the login form page")
