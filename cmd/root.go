@@ -34,6 +34,10 @@ output formats including txt, json, csv, and markdown.`,
 			cfg.Headless = false
 		}
 
+		if cfg.AuthVerifySelector != "" && cfg.AuthFormURL == "" {
+			fmt.Fprintln(os.Stderr, "v0x: warning: --auth-verify-selector has no effect without --auth-form-url")
+		}
+
 		authStrategyName := "none"
 		switch {
 		case cfg.AuthFormURL != "":
@@ -160,6 +164,7 @@ func init() {
 	flags.StringVar(&cfg.AuthFormUserField, "auth-form-user-field", "username", "Name attribute of the username input")
 	flags.StringVar(&cfg.AuthFormPassField, "auth-form-pass-field", "password", "Name attribute of the password input")
 	flags.StringVar(&cfg.AuthFormSubmit, "auth-form-submit", "[type=submit]", "CSS selector for the submit button")
+	flags.StringVar(&cfg.AuthVerifySelector, "auth-verify-selector", "", "CSS selector that must be present after login to confirm authentication succeeded")
 
 	// HTTP Basic auth
 	flags.StringVar(&cfg.AuthBasicUser, "auth-basic-user", "", "HTTP Basic auth username")

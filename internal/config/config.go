@@ -25,6 +25,7 @@ type Config struct {
 	AuthFormUserField string // default: "username"
 	AuthFormPassField string // default: "password"
 	AuthFormSubmit    string // default: "[type=submit]"
+	AuthVerifySelector string // CSS selector that must be present after login
 
 	// HTTP Basic auth
 	AuthBasicUser string
