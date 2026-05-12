@@ -95,6 +95,8 @@ func Extract(html string, cfg config.Config) Result {
 		return Result{Meta: make(map[string]string)}
 	}
 
+	// extractMeta MUST run before extractWords: extractWords removes <script>
+	// nodes, which would destroy JSON-LD data before extractMeta can parse it.
 	meta := extractMeta(doc)
 	words := extractWords(doc, cfg.MinWordLength)
 	emails := extractEmails(html)
@@ -134,6 +136,9 @@ func extractWords(doc *goquery.Document, minLen int) []string {
 }
 
 func isAllDigits(s string) bool {
+	if s == "" {
+		return false
+	}
 	for _, r := range s {
 		if !unicode.IsDigit(r) {
 			return false

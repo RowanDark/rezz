@@ -93,13 +93,17 @@ func (c *PlaywrightCrawler) Crawl(ctx context.Context, cfg config.Config) (<-cha
 				continue
 			}
 
+			pageCtx, pageCancel := context.WithTimeout(ctx, 30*time.Second)
 			_, err = pg.Goto(item.url, playwright.PageGotoOptions{
 				WaitUntil: playwright.WaitUntilStateNetworkidle,
+				Timeout:   playwright.Float(30000),
 			})
+			pageCancel()
 			if err != nil {
 				pg.Close()
 				continue
 			}
+			_ = pageCtx
 
 			html, err := pg.Content()
 			pg.Close()

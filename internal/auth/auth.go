@@ -88,7 +88,11 @@ func (f *FormAuth) ApplyToPage(ctx context.Context, browserCtx playwright.Browse
 		return fmt.Errorf("form auth: wait for post-login navigation: %w", err)
 	}
 
-	// If the final URL still contains the login path, login likely failed.
+	// NOTE: This check is heuristic. It will false-positive if the app uses MFA
+	// at a /login/* path, and false-negative if the app serves a success page at
+	// the same path or redirects to a different domain (SSO/OAuth). For reliable
+	// auth verification, use a --auth-verify-selector flag (a CSS selector that
+	// should only be present on an authenticated page).
 	loginPath := ""
 	if u, err := url.Parse(cfg.AuthFormURL); err == nil {
 		loginPath = u.Path
