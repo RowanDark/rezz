@@ -98,7 +98,20 @@ func (f *FormAuth) ApplyToPage(ctx context.Context, browserCtx playwright.Browse
 		loginPath = u.Path
 	}
 	if loginPath != "" && strings.Contains(pg.URL(), loginPath) {
-		return fmt.Errorf("form auth: login appears to have failed — current URL still contains login path %q", loginPath)
+		if cfg.AuthVerifySelector == "" {
+			return fmt.Errorf("form auth: login appears to have failed — current URL still contains login path %q", loginPath)
+		}
+	}
+
+	if cfg.AuthVerifySelector != "" {
+		count, err := pg.Locator(cfg.AuthVerifySelector).Count()
+		if err != nil {
+			return fmt.Errorf("form auth: verify selector check failed: %w", err)
+		}
+		if count == 0 {
+			return fmt.Errorf("form auth: post-login verification failed — selector %q not found on %s",
+				cfg.AuthVerifySelector, pg.URL())
+		}
 	}
 
 	return nil

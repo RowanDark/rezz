@@ -67,6 +67,7 @@ v0x --url https://target.com --no-headless --format md --output report.md
 | `--auth-form-user-field` | `username` | `name` attribute of the username input |
 | `--auth-form-pass-field` | `password` | `name` attribute of the password input |
 | `--auth-form-submit` | `[type=submit]` | CSS selector for the submit button |
+| `--auth-verify-selector` | — | CSS selector that must be present after login to confirm authentication succeeded |
 | `--auth-basic-user` | — | HTTP Basic auth username |
 | `--auth-basic-pass` | — | HTTP Basic auth password |
 | `--auth-cookie` | — | Cookie string, e.g. `"session=abc; token=xyz"` |
@@ -87,6 +88,18 @@ v0x --url https://target.com/dashboard \
     --auth-form-user-field email \
     --auth-form-pass-field password \
     --auth-form-submit "button[type=submit]"
+```
+
+### Form login with post-login verification
+
+Use `--auth-verify-selector` to confirm authentication succeeded before crawling begins. Provide a CSS selector that only appears when authenticated (e.g. a nav item, account menu, or dashboard element). This is especially useful when the login redirects to a different domain (SSO) or uses the same URL path on success.
+
+```bash
+v0x --url https://target.com/dashboard \
+    --auth-form-url https://target.com/login \
+    --auth-form-user admin \
+    --auth-form-pass hunter2 \
+    --auth-verify-selector "#account-menu"
 ```
 
 ### HTTP Basic auth
