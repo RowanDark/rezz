@@ -162,7 +162,7 @@ func (MarkdownFormatter) Write(w io.Writer, r extractor.Result, meta OutputMeta)
 		}
 		sort.Strings(keys)
 		for _, k := range keys {
-			fmt.Fprintf(w, "| %s | %s |\n", k, r.Meta[k])
+			fmt.Fprintf(w, "| %s | %s |\n", mdEscape(k), mdEscape(r.Meta[k]))
 		}
 	}
 
@@ -170,6 +170,10 @@ func (MarkdownFormatter) Write(w io.Writer, r extractor.Result, meta OutputMeta)
 }
 
 // --- helpers --------------------------------------------------------------
+
+func mdEscape(s string) string {
+	return strings.ReplaceAll(s, "|", "\\|")
+}
 
 func sorted(in []string) []string {
 	out := make([]string, len(in))

@@ -31,7 +31,15 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 		fmt.Fprintln(os.Stderr, "v0x: warning: --auth-form-* flags are not supported in HTTP mode (--no-headless); form auth will be skipped")
 	}
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 10 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
+	}
 	delay := time.Duration(cfg.Delay) * time.Millisecond
 
 	pages := make(chan Page)
@@ -68,6 +76,13 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 
 			resp, err := client.Do(req)
 			if err != nil {
+				continue
+			}
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				resp.Body.Close()
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "v0x: skip %s (HTTP %d)\n", item.url, resp.StatusCode)
+				}
 				continue
 			}
 
@@ -137,7 +152,6 @@ func extractLinks(html, pageURL string, base *url.URL) []string {
 		}
 		resolved := page.ResolveReference(ref)
 		resolved.Fragment = ""
-		resolved.RawQuery = ""
 
 		if resolved.Host != base.Host {
 			return
