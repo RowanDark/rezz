@@ -153,6 +153,14 @@ func extractLinks(html, pageURL string, base *url.URL) []string {
 		resolved := page.ResolveReference(ref)
 		resolved.Fragment = ""
 
+		// Strip path parameters (e.g. ;jsessionid=abc123) from URL path.
+		// These are appended by Java EE servers when cookie-based sessions
+		// are unavailable and must be normalized for correct deduplication.
+		if idx := strings.Index(resolved.Path, ";"); idx >= 0 {
+			resolved.Path = resolved.Path[:idx]
+			resolved.RawPath = ""
+		}
+
 		if resolved.Host != base.Host {
 			return
 		}
