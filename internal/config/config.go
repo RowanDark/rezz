@@ -4,6 +4,7 @@ package config
 type Config struct {
 	URL           string
 	Depth         int
+	Delay         int
 	MinWordLength int
 	UserAgent     string
 	Output        string

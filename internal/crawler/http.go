@@ -1,0 +1,144 @@
+package crawler
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/PuerkitoBio/goquery"
+	"github.com/RowanDark/v0x/internal/config"
+)
+
+// HTTPCrawler uses net/http and goquery for static pages that do not require JS.
+type HTTPCrawler struct{}
+
+func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page, error) {
+	base, err := url.Parse(cfg.URL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	client := &http.Client{}
+	delay := time.Duration(cfg.Delay) * time.Millisecond
+
+	pages := make(chan Page)
+
+	go func() {
+		defer close(pages)
+
+		var visited sync.Map
+		queue := []queueItem{{url: cfg.URL, depth: 0}}
+
+		for len(queue) > 0 {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			item := queue[0]
+			queue = queue[1:]
+
+			if _, seen := visited.LoadOrStore(item.url, struct{}{}); seen {
+				continue
+			}
+
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, item.url, nil)
+			if err != nil {
+				continue
+			}
+			req.Header.Set("User-Agent", cfg.UserAgent)
+
+			resp, err := client.Do(req)
+			if err != nil {
+				continue
+			}
+
+			doc, err := goquery.NewDocumentFromReader(resp.Body)
+			resp.Body.Close()
+			if err != nil {
+				continue
+			}
+
+			var sb strings.Builder
+			doc.Find("html").Each(func(_ int, s *goquery.Selection) {
+				html, _ := goquery.OuterHtml(s)
+				sb.WriteString(html)
+			})
+			html := sb.String()
+
+			select {
+			case <-ctx.Done():
+				return
+			case pages <- Page{URL: item.url, HTML: html, Depth: item.depth}:
+			}
+
+			if item.depth < cfg.Depth {
+				links := extractLinks(html, item.url, base)
+				for _, link := range links {
+					if _, seen := visited.Load(link); !seen {
+						queue = append(queue, queueItem{url: link, depth: item.depth + 1})
+					}
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(delay):
+			}
+		}
+	}()
+
+	return pages, nil
+}
+
+// extractLinks parses <a href> links from html, resolves them against pageURL,
+// and returns only same-domain absolute URLs.
+func extractLinks(html, pageURL string, base *url.URL) []string {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		return nil
+	}
+
+	page, err := url.Parse(pageURL)
+	if err != nil {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	var links []string
+
+	doc.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
+		href, _ := s.Attr("href")
+		if href == "" {
+			return
+		}
+		ref, err := url.Parse(href)
+		if err != nil {
+			return
+		}
+		resolved := page.ResolveReference(ref)
+		resolved.Fragment = ""
+		resolved.RawQuery = ""
+
+		if resolved.Host != base.Host {
+			return
+		}
+		if resolved.Scheme != "http" && resolved.Scheme != "https" {
+			return
+		}
+		key := resolved.String()
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
+		links = append(links, key)
+	})
+
+	return links
+}
