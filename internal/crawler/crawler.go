@@ -9,9 +9,10 @@ import (
 
 // Page represents a crawled page.
 type Page struct {
-	URL   string
-	HTML  string
-	Depth int
+	URL      string
+	HTML     string
+	Depth    int
+	IsScript bool // true if this is a fetched JS or CSS resource, not an HTML page
 }
 
 // Crawler defines the interface for web crawlers.

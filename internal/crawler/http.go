@@ -100,10 +100,38 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 			})
 			html := sb.String()
 
+			base, err := url.Parse(item.url)
+			if err != nil {
+				continue
+			}
+
 			select {
 			case <-ctx.Done():
 				return
 			case pages <- Page{URL: item.url, HTML: html, Depth: item.depth}:
+			}
+
+			// Fetch in-scope script files discovered on this page
+			scriptURLs := extractScriptSrcs(html, item.url, base, eng, &visited)
+			for _, scriptURL := range scriptURLs {
+				if _, seen := visited.LoadOrStore(scriptURL, struct{}{}); seen {
+					continue
+				}
+				scriptPage, err := fetchScript(scriptURL, cfg.UserAgent)
+				if err != nil {
+					if cfg.Verbose {
+						fmt.Fprintf(os.Stderr, "rezz: script fetch failed %s: %v\n", scriptURL, err)
+					}
+					continue
+				}
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "rezz: fetched script %s\n", scriptURL)
+				}
+				select {
+				case pages <- *scriptPage:
+				case <-ctx.Done():
+					return
+				}
 			}
 
 			if item.depth < cfg.Depth {
