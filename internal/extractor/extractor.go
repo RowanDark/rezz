@@ -23,12 +23,12 @@ const (
 
 // Endpoint is a single discovered URL reference.
 type Endpoint struct {
-	Type       EndpointType
-	URL        string
-	FoundIn    string   // source page URL
-	Method     string   // for forms: GET or POST; empty otherwise
-	Fields     []string // for forms: input field names
-	StatusCode int      // for crawled pages; 0 if not fetched
+	Type       EndpointType `json:"type"`
+	URL        string       `json:"url"`
+	FoundIn    string       `json:"found_in"`
+	Method     string       `json:"method,omitempty"`
+	Fields     []string     `json:"fields,omitempty"`
+	StatusCode int          `json:"status_code,omitempty"`
 }
 
 var sensitivePaths = []string{
@@ -42,11 +42,15 @@ var sensitivePaths = []string{
 }
 
 var (
-	reFetch   *regexp.Regexp
-	reAxios   *regexp.Regexp
-	reXHR     *regexp.Regexp
-	reAPIPath *regexp.Regexp
-	reCSS     *regexp.Regexp
+	reFetch      *regexp.Regexp
+	reAxios      *regexp.Regexp
+	reXHR        *regexp.Regexp
+	reAPIPath    *regexp.Regexp
+	reCSS        *regexp.Regexp
+	reJSFAjax    *regexp.Regexp
+	reJQueryAjax *regexp.Regexp
+	reJQueryURL  *regexp.Regexp
+	rePathLit    *regexp.Regexp
 )
 
 func init() {
@@ -55,6 +59,10 @@ func init() {
 	reXHR = regexp.MustCompile(`\.open\(\s*["'][A-Z]+["']\s*,\s*["` + "`" + `']([^"` + "`" + `']+)["` + "`" + `']`)
 	reAPIPath = regexp.MustCompile(`["` + "`" + `'](/(?:api|v[0-9]|graphql|rest|ws|webhook|oauth|auth|admin|internal)[^\s"` + "`" + `'#?]*)["` + "`" + `']`)
 	reCSS = regexp.MustCompile(`url\(\s*["']?([^"')]+)["']?\s*\)`)
+	reJSFAjax = regexp.MustCompile(`jsf\.ajax\.request\([^,]+,\s*[^,]+,\s*\{[^}]*action:\s*["']([^"']+)["']`)
+	reJQueryAjax = regexp.MustCompile(`\$\.(?:ajax|get|post)\(\s*["` + "`" + `']([^"` + "`" + `']+)["` + "`" + `']`)
+	reJQueryURL = regexp.MustCompile(`url:\s*["` + "`" + `']([^"` + "`" + `']+)["` + "`" + `']`)
+	rePathLit = regexp.MustCompile(`["` + "`" + `']((?:/[a-zA-Z0-9_\-]+){2,})["` + "`" + `']`)
 }
 
 func isSensitivePath(path string) bool {
@@ -224,7 +232,7 @@ func Extract(html, pageURL string, base *url.URL) []Endpoint {
 	})
 
 	// 2. JS regex patterns on raw HTML string
-	for _, re := range []*regexp.Regexp{reFetch, reAxios, reXHR, reAPIPath} {
+	for _, re := range []*regexp.Regexp{reFetch, reAxios, reXHR, reAPIPath, reJSFAjax, reJQueryAjax, reJQueryURL, rePathLit} {
 		matches := re.FindAllStringSubmatch(html, -1)
 		for _, m := range matches {
 			if len(m) < 2 {
