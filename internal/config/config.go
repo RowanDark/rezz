@@ -39,6 +39,10 @@ type Config struct {
 	AuthBearer string
 	AuthHeader string // "Name: Value" format
 
+	// Scope control
+	Scope       string // comma-separated scope entries
+	StrictScope bool   // if true, no subdomain expansion
+
 	// Pattern scanning
 	Patterns   string // comma-separated kit names
 	CustomFile string // path to custom YAML

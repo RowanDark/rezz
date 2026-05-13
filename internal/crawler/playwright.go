@@ -3,12 +3,12 @@ package crawler
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"sync"
 	"time"
 
 	"github.com/RowanDark/rezz/internal/auth"
 	"github.com/RowanDark/rezz/internal/config"
+	"github.com/RowanDark/rezz/internal/scope"
 	"github.com/playwright-community/playwright-go"
 )
 
@@ -24,9 +24,9 @@ type queueItem struct {
 }
 
 func (c *PlaywrightCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page, error) {
-	base, err := url.Parse(cfg.URL)
+	eng, err := scope.New(cfg.Scope, cfg.URL, cfg.StrictScope)
 	if err != nil {
-		return nil, fmt.Errorf("invalid URL: %w", err)
+		return nil, fmt.Errorf("scope: %w", err)
 	}
 
 	pw, err := playwright.Run()
@@ -115,7 +115,7 @@ func (c *PlaywrightCrawler) Crawl(ctx context.Context, cfg config.Config) (<-cha
 			}
 
 			if item.depth < cfg.Depth {
-				links := extractLinks(html, item.url, base)
+				links := extractLinks(html, item.url, eng, cfg.Verbose)
 				for _, link := range links {
 					if _, seen := visited.Load(link); !seen {
 						queue = append(queue, queueItem{url: link, depth: item.depth + 1})
