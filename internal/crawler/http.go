@@ -13,6 +13,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/RowanDark/rezz/internal/auth"
 	"github.com/RowanDark/rezz/internal/config"
+	"github.com/RowanDark/rezz/internal/scope"
 )
 
 // HTTPCrawler uses net/http and goquery for static pages that do not require JS.
@@ -21,9 +22,9 @@ type HTTPCrawler struct {
 }
 
 func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page, error) {
-	base, err := url.Parse(cfg.URL)
+	eng, err := scope.New(cfg.Scope, cfg.URL, cfg.StrictScope)
 	if err != nil {
-		return nil, fmt.Errorf("invalid URL: %w", err)
+		return nil, fmt.Errorf("scope: %w", err)
 	}
 
 	// Form auth requires a browser; warn and skip gracefully in HTTP mode.
@@ -106,7 +107,7 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 			}
 
 			if item.depth < cfg.Depth {
-				links := extractLinks(html, item.url, base)
+				links := extractLinks(html, item.url, eng, cfg.Verbose)
 				for _, link := range links {
 					if _, seen := visited.Load(link); !seen {
 						queue = append(queue, queueItem{url: link, depth: item.depth + 1})
@@ -126,8 +127,8 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 }
 
 // extractLinks parses <a href> links from html, resolves them against pageURL,
-// and returns only same-domain absolute URLs.
-func extractLinks(html, pageURL string, base *url.URL) []string {
+// and returns only in-scope absolute URLs.
+func extractLinks(html, pageURL string, eng *scope.Engine, verbose bool) []string {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
 		return nil
@@ -161,10 +162,13 @@ func extractLinks(html, pageURL string, base *url.URL) []string {
 			resolved.RawPath = ""
 		}
 
-		if resolved.Host != base.Host {
+		if resolved.Scheme != "http" && resolved.Scheme != "https" {
 			return
 		}
-		if resolved.Scheme != "http" && resolved.Scheme != "https" {
+		if !eng.InScope(resolved.String()) {
+			if verbose {
+				fmt.Fprintf(os.Stderr, "rezz: skip %s (out of scope)\n", resolved.String())
+			}
 			return
 		}
 		key := resolved.String()

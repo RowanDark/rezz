@@ -228,4 +228,10 @@ func init() {
 	// Bearer token / custom header
 	flags.StringVar(&cfg.AuthBearer, "auth-bearer", "", "Bearer token for Authorization header")
 	flags.StringVar(&cfg.AuthHeader, "auth-header", "", `Custom auth header in "Name: Value" format`)
+
+	// Scope control
+	flags.StringVar(&cfg.Scope, "scope", "",
+		`Comma-separated list of in-scope hosts. Base domains include subdomains (e.g. "paylution.com,hyperwallet.com"). Defaults to exact host of --url.`)
+	flags.BoolVar(&cfg.StrictScope, "strict-scope", false,
+		"Disable subdomain expansion — all scope entries match exact host only")
 }
