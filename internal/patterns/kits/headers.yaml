@@ -1,12 +1,7 @@
 kit: headers
-# NOTE: The following four patterns from the original Python draugr_main.py
-# "Security Headers & Vulnerabilities" kit used negative lookaheads and cannot
-# be ported to Go's RE2 engine, which does not support lookaheads or lookbehinds.
-# They have been omitted:
-#   - "Missing Strict-Transport-Security" (required (?!.*Strict-Transport-Security))
-#   - "Missing X-Frame-Options" (required (?!.*X-Frame-Options))
-#   - "Missing X-Content-Type-Options" (required (?!.*X-Content-Type-Options))
-#   - "Missing Content-Security-Policy" (required (?!.*Content-Security-Policy))
+# NOTE: Patterns using negative lookaheads (?!...) are not supported by Go's
+# RE2 regexp engine and have been omitted. Affected patterns: missing security
+# header checks (CSP, X-Frame-Options, Cache-Control, Set-Cookie flags).
 patterns:
   - name: Server Version Disclosure
     regex: '(?i)Server:\s*(?:Apache|nginx|IIS|lighttpd|Jetty|Tomcat|Express|Caddy)[/\s][0-9]+\.[0-9]+'
@@ -62,21 +57,6 @@ patterns:
     regex: '(?i)X-Frame-Options:\s*ALLOWALL'
     category: Security Headers & Vulnerabilities
     severity: high
-
-  - name: Cache-Control Missing No-Store
-    regex: '(?i)Cache-Control:[^\r\n]*(?:public|no-cache)(?![^\r\n]*no-store)'
-    category: Security Headers & Vulnerabilities
-    severity: low
-
-  - name: Set-Cookie Missing Secure Flag
-    regex: '(?i)Set-Cookie:[^\r\n]*(?:session|token|auth|jwt)[^\r\n]*(?!\bSecure\b)'
-    category: Security Headers & Vulnerabilities
-    severity: medium
-
-  - name: Set-Cookie Missing HttpOnly Flag
-    regex: '(?i)Set-Cookie:[^\r\n]*(?:session|token|auth|jwt)[^\r\n]*(?!\bHttpOnly\b)'
-    category: Security Headers & Vulnerabilities
-    severity: medium
 
   - name: Exposed Stack Trace
     regex: '(?i)(?:at\s+[a-zA-Z0-9_$.<>]+\s*\([^)]*\.[a-z]+:[0-9]+:[0-9]+\))'
