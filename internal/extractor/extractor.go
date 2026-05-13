@@ -19,6 +19,7 @@ const (
 	TypeAsset      EndpointType = "ASSET"
 	TypeOutOfScope EndpointType = "OUT-OF-SCOPE"
 	TypeSensitive  EndpointType = "SENSITIVE"
+	TypeScript     EndpointType = "SCRIPT" // fetched JS/CSS resource
 )
 
 // Endpoint is a single discovered URL reference.

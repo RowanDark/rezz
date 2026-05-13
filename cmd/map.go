@@ -116,6 +116,30 @@ func runMap(cmd *cobra.Command, args []string) error {
 	g, _ := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		for page := range pages {
+			if page.IsScript {
+				em.Add([]extractor.Endpoint{{
+					Type:    extractor.TypeScript,
+					URL:     page.URL,
+					FoundIn: "crawler",
+				}})
+				pageURL, _ := url.Parse(page.URL)
+				discovered := extractor.Extract(page.HTML, page.URL, pageURL)
+				for i := range discovered {
+					if !eng.InScope(discovered[i].URL) {
+						discovered[i].Type = extractor.TypeOutOfScope
+					}
+				}
+				em.Add(discovered)
+				if mapFormat == "stream" && !mapCfg.Quiet {
+					fmt.Fprintf(w, "[SCRIPT]       %s\n", page.URL)
+					for _, e := range discovered {
+						printEndpoint(w, e)
+					}
+				}
+				pagesCrawled++
+				continue
+			}
+
 			em.AddCrawled(page.URL, 200)
 			pageURL, _ := url.Parse(page.URL)
 			discovered := extractor.Extract(page.HTML, page.URL, pageURL)
@@ -193,5 +217,7 @@ func printEndpoint(w io.Writer, e extractor.Endpoint) {
 		fmt.Fprintf(w, "[OUT-OF-SCOPE]     %s  found in: %s\n", e.URL, e.FoundIn)
 	case extractor.TypeSensitive:
 		fmt.Fprintf(w, "[SENSITIVE]        %s  found in: %s\n", e.URL, e.FoundIn)
+	case extractor.TypeScript:
+		fmt.Fprintf(w, "[SCRIPT]           %s\n", e.URL)
 	}
 }
