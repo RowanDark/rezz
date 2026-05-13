@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/RowanDark/v0x/internal/auth"
-	"github.com/RowanDark/v0x/internal/config"
+	"github.com/RowanDark/rezz/internal/auth"
+	"github.com/RowanDark/rezz/internal/config"
 )
 
 // HTTPCrawler uses net/http and goquery for static pages that do not require JS.
@@ -28,7 +28,7 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 
 	// Form auth requires a browser; warn and skip gracefully in HTTP mode.
 	if cfg.AuthFormURL != "" {
-		fmt.Fprintln(os.Stderr, "v0x: warning: --auth-form-* flags are not supported in HTTP mode (--no-headless); form auth will be skipped")
+		fmt.Fprintln(os.Stderr, "rezz: warning: --auth-form-* flags are not supported in HTTP mode (--no-headless); form auth will be skipped")
 	}
 
 	client := &http.Client{
@@ -81,7 +81,7 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				resp.Body.Close()
 				if cfg.Verbose {
-					fmt.Fprintf(os.Stderr, "v0x: skip %s (HTTP %d)\n", item.url, resp.StatusCode)
+					fmt.Fprintf(os.Stderr, "rezz: skip %s (HTTP %d)\n", item.url, resp.StatusCode)
 				}
 				continue
 			}

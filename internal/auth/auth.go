@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/RowanDark/v0x/internal/config"
+	"github.com/RowanDark/rezz/internal/config"
 	"github.com/playwright-community/playwright-go"
 )
 

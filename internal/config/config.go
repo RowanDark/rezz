@@ -38,4 +38,8 @@ type Config struct {
 	// Bearer token / custom header
 	AuthBearer string
 	AuthHeader string // "Name: Value" format
+
+	// Pattern scanning
+	Patterns   string // comma-separated kit names
+	CustomFile string // path to custom YAML
 }

@@ -1,0 +1,151 @@
+kit: api-keys
+patterns:
+  - name: GitHub Token (fine-grained)
+    regex: '(?:ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{36}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: GitHub OAuth Token
+    regex: 'gho_[a-zA-Z0-9]{36}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: GitHub App Token
+    regex: '(?:ghs|ghr)_[a-zA-Z0-9]{36}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: AWS Access Key ID
+    regex: '(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Google API Key
+    regex: 'AIza[0-9A-Za-z\-_]{35}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Google OAuth Client Secret
+    regex: 'GOCSPX-[a-zA-Z0-9_\-]{28}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Stripe Live Secret Key
+    regex: 'sk_live_[a-zA-Z0-9]{24,}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Stripe Test Secret Key
+    regex: 'sk_test_[a-zA-Z0-9]{24,}'
+    category: API Keys & Secrets
+    severity: medium
+
+  - name: Stripe Publishable Key
+    regex: 'pk_(?:live|test)_[a-zA-Z0-9]{24,}'
+    category: API Keys & Secrets
+    severity: low
+
+  - name: Twilio Account SID
+    regex: 'AC[a-zA-Z0-9]{32}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Twilio Auth Token
+    regex: 'SK[a-zA-Z0-9]{32}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: SendGrid API Key
+    regex: 'SG\.[a-zA-Z0-9_\-]{22}\.[a-zA-Z0-9_\-]{43}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Slack Bot Token
+    regex: 'xoxb-[0-9]{11,13}-[0-9]{11,13}-[a-zA-Z0-9]{24}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Slack User Token
+    regex: 'xoxp-[0-9]{11,13}-[0-9]{11,13}-[0-9]{11,13}-[a-zA-Z0-9]{32}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Slack Webhook URL
+    regex: 'https://hooks\.slack\.com/services/T[a-zA-Z0-9_]{8,10}/B[a-zA-Z0-9_]{8,10}/[a-zA-Z0-9_]{24}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: NPM Access Token
+    regex: 'npm_[a-zA-Z0-9]{36}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: PyPI API Token
+    regex: 'pypi-[A-Za-z0-9_\-]{50,}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Mailgun API Key
+    regex: 'key-[0-9a-zA-Z]{32}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Mailchimp API Key
+    regex: '[0-9a-f]{32}-us[0-9]{1,2}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Telegram Bot Token
+    regex: '[0-9]{8,10}:[a-zA-Z0-9_\-]{35}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: JWT Token
+    regex: 'eyJ[a-zA-Z0-9_\-]+\.eyJ[a-zA-Z0-9_\-]+\.[a-zA-Z0-9_\-]+'
+    category: API Keys & Secrets
+    severity: medium
+
+  - name: Square Access Token
+    regex: 'sq0atp-[a-zA-Z0-9_\-]{22}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Square OAuth Secret
+    regex: 'sq0csp-[a-zA-Z0-9_\-]{43}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Shopify Access Token
+    regex: 'shpat_[a-fA-F0-9]{32}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Shopify Custom App Access Token
+    regex: 'shpca_[a-fA-F0-9]{32}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: HubSpot API Key
+    regex: '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+    category: API Keys & Secrets
+    severity: low
+
+  - name: Datadog API Key
+    regex: '(?i)datadog.{0,30}[a-f0-9]{32}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: OpenAI API Key
+    regex: 'sk-[a-zA-Z0-9]{48}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Anthropic API Key
+    regex: 'sk-ant-[a-zA-Z0-9\-_]{95}'
+    category: API Keys & Secrets
+    severity: high
+
+  - name: Generic API Key Assignment
+    regex: '(?i)api[_\-]?(?:key|secret|token)\s*[=:]\s*["\x27][a-zA-Z0-9_\-]{16,}["\x27]'
+    category: API Keys & Secrets
+    severity: medium

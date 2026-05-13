@@ -3,8 +3,8 @@ package crawler
 import (
 	"context"
 
-	"github.com/RowanDark/v0x/internal/auth"
-	"github.com/RowanDark/v0x/internal/config"
+	"github.com/RowanDark/rezz/internal/auth"
+	"github.com/RowanDark/rezz/internal/config"
 )
 
 // Page represents a crawled page.
