@@ -1,0 +1,101 @@
+kit: cloud
+patterns:
+  - name: AWS S3 Bucket URL
+    regex: 's3(?:\.amazonaws\.com/|://)[a-z0-9][a-z0-9.\-]{1,61}[a-z0-9]'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: AWS S3 Bucket Virtual-Hosted URL
+    regex: '[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]\.s3(?:\.[a-z0-9\-]+)?\.amazonaws\.com'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: AWS CloudFront URL
+    regex: '[a-z0-9]+\.cloudfront\.net'
+    category: Cloud Storage & CDN
+    severity: low
+
+  - name: Azure Blob Storage URL
+    regex: '[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]\.blob\.core\.windows\.net'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: Azure File Storage URL
+    regex: '[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]\.file\.core\.windows\.net'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: Azure Table Storage URL
+    regex: '[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]\.table\.core\.windows\.net'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: Google Cloud Storage URL
+    regex: 'storage\.googleapis\.com/[a-z0-9][a-z0-9_.\-]{1,61}[a-z0-9]'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: GCP Bucket Virtual-Hosted URL
+    regex: '[a-z0-9][a-z0-9_.\-]{1,61}[a-z0-9]\.storage\.googleapis\.com'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: DigitalOcean Spaces URL
+    regex: '[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]\.[a-z]{2,3}-[0-9]\.digitaloceanspaces\.com'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: Alibaba Cloud OSS URL
+    regex: '[a-z0-9][a-z0-9\-]{1,61}[a-z0-9]\.oss-[a-z0-9\-]+\.aliyuncs\.com'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: AWS Lambda Function URL
+    regex: '[a-z0-9]+\.lambda-url\.[a-z0-9\-]+\.on\.aws'
+    category: Cloud Storage & CDN
+    severity: low
+
+  - name: AWS API Gateway URL
+    regex: '[a-z0-9]+\.execute-api\.[a-z0-9\-]+\.amazonaws\.com'
+    category: Cloud Storage & CDN
+    severity: low
+
+  - name: Firebase Storage URL
+    regex: 'firebasestorage\.googleapis\.com/v0/b/[a-zA-Z0-9\-]+\.appspot\.com'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: Firebase Realtime Database URL
+    regex: '[a-zA-Z0-9\-]+\.firebaseio\.com'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: Heroku App URL
+    regex: '[a-z0-9][a-z0-9\-]+\.herokuapp\.com'
+    category: Cloud Storage & CDN
+    severity: low
+
+  - name: Netlify App URL
+    regex: '[a-z0-9][a-z0-9\-]+\.netlify\.app'
+    category: Cloud Storage & CDN
+    severity: low
+
+  - name: Vercel Deployment URL
+    regex: '[a-zA-Z0-9][a-zA-Z0-9\-]+\.vercel\.app'
+    category: Cloud Storage & CDN
+    severity: low
+
+  - name: AWS Secrets Manager ARN
+    regex: 'arn:aws:secretsmanager:[a-z0-9\-]+:[0-9]{12}:secret:[a-zA-Z0-9/_+=.@\-]+'
+    category: Cloud Storage & CDN
+    severity: high
+
+  - name: AWS IAM ARN
+    regex: 'arn:aws:iam::[0-9]{12}:(?:user|role|group)/[a-zA-Z0-9_+=,.@\-/]+'
+    category: Cloud Storage & CDN
+    severity: medium
+
+  - name: GCP Service Account Key Email
+    regex: '[a-z0-9\-]+@[a-z0-9\-]+\.iam\.gserviceaccount\.com'
+    category: Cloud Storage & CDN
+    severity: high

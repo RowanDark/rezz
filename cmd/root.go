@@ -5,28 +5,30 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
 
-	"github.com/RowanDark/v0x/internal/config"
-	"github.com/RowanDark/v0x/internal/crawler"
-	"github.com/RowanDark/v0x/internal/extractor"
-	"github.com/RowanDark/v0x/internal/output"
+	"github.com/RowanDark/rezz/internal/config"
+	"github.com/RowanDark/rezz/internal/crawler"
+	"github.com/RowanDark/rezz/internal/output"
+	"github.com/RowanDark/rezz/internal/patterns"
 	"github.com/spf13/cobra"
 )
 
 const banner = `
 ┌─────────────────────────────────┐
-│  ██╗   ██╗ ██████╗ ██╗  ██╗    │
-│  ██║   ██║██╔═████╗╚██╗██╔╝    │
-│  ██║   ██║██║██╔██║ ╚███╔╝     │
-│  ╚██╗ ██╔╝████╔╝██║ ██╔██╗     │
-│   ╚████╔╝ ╚██████╔╝██╔╝ ██╗    │
-│    ╚═══╝   ╚═════╝ ╚═╝  ╚═╝    │
-│  wordlist generator  v1.0.0     │
-│  github.com/RowanDark/v0x       │
+│  ██████╗ ███████╗███████╗███████╗│
+│  ██╔══██╗██╔════╝╚══███╔╝╚══███╔╝│
+│  ██████╔╝█████╗    ███╔╝   ███╔╝ │
+│  ██╔══██╗██╔══╝   ███╔╝   ███╔╝  │
+│  ██║  ██║███████╗███████╗███████╗ │
+│  ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝│
+│  pattern scanner  v1.0.0          │
+│  github.com/RowanDark/rezz        │
 └─────────────────────────────────┘
 `
 
@@ -34,12 +36,12 @@ var cfg config.Config
 var noHeadless bool
 
 var rootCmd = &cobra.Command{
-	Use:          "v0x",
-	Short:        "v0x is a modern web wordlist generator",
+	Use:          "rezz",
+	Short:        "rezz is a web crawler and secret scanner",
 	SilenceUsage: true,
-	Long: `v0x crawls web pages and extracts words to build targeted wordlists.
-It supports headless browser crawling via playwright-go and structured
-output formats including txt, json, csv, and markdown.`,
+	Long: `rezz crawls web pages and scans for secrets, credentials, and sensitive data
+using embedded regex pattern kits. It supports headless browser crawling via
+playwright-go and output formats including stream, json, and csv.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !cfg.Quiet && term.IsTerminal(int(os.Stdout.Fd())) {
 			fmt.Fprint(os.Stderr, banner)
@@ -53,7 +55,7 @@ output formats including txt, json, csv, and markdown.`,
 		}
 
 		if cfg.AuthVerifySelector != "" && cfg.AuthFormURL == "" {
-			fmt.Fprintln(os.Stderr, "v0x: warning: --auth-verify-selector has no effect without --auth-form-url")
+			fmt.Fprintln(os.Stderr, "rezz: warning: --auth-verify-selector has no effect without --auth-form-url")
 		}
 
 		authStrategyName := "none"
@@ -69,13 +71,27 @@ output formats including txt, json, csv, and markdown.`,
 		}
 
 		if cfg.Verbose && !cfg.Quiet {
-			fmt.Fprintf(os.Stderr, "v0x: crawling %s (depth=%d, headless=%v, auth=%s)\n",
+			fmt.Fprintf(os.Stderr, "rezz: crawling %s (depth=%d, headless=%v, auth=%s)\n",
 				cfg.URL, cfg.Depth, cfg.Headless, authStrategyName)
 		}
 
-		formatter, err := output.New(cfg.Format)
-		if err != nil {
-			return err
+		// Parse pattern kit names
+		kitNames := strings.Split(cfg.Patterns, ",")
+		for i, k := range kitNames {
+			kitNames[i] = strings.TrimSpace(k)
+		}
+
+		// Build and load pattern registry
+		log := zap.NewNop()
+		if cfg.Verbose {
+			log, _ = zap.NewProduction()
+		}
+		reg := patterns.New(log)
+		if err := reg.Load(kitNames); err != nil {
+			return fmt.Errorf("patterns: %w", err)
+		}
+		if cfg.Verbose {
+			fmt.Fprintf(os.Stderr, "rezz: loaded %d patterns\n", reg.Count())
 		}
 
 		// Open output writer before crawling — fail fast if we can't write.
@@ -114,17 +130,24 @@ output formats including txt, json, csv, and markdown.`,
 			return fmt.Errorf("starting crawl: %w", err)
 		}
 
-		agg := extractor.NewAggregator()
+		var allFindings []patterns.Finding
 		var pagesCrawled int
 
 		g, _ := errgroup.WithContext(ctx)
 		g.Go(func() error {
 			for page := range pages {
-				r := extractor.Extract(page.HTML, cfg)
-				agg.Add(r)
+				// Page.HTML contains full rendered content; headers not exposed yet.
+				headerStr := ""
+				findings := reg.Match(page.HTML, headerStr, page.URL, 200, false)
+				for _, f := range findings {
+					allFindings = append(allFindings, f)
+					if cfg.Format == "stream" && !cfg.Quiet {
+						output.StreamWriter(f)
+					}
+				}
 				pagesCrawled++
 				if cfg.Verbose && !cfg.Quiet {
-					fmt.Fprintf(os.Stderr, "v0x: page %s — %d words\n", page.URL, len(r.Words))
+					fmt.Fprintf(os.Stderr, "rezz: page %s — %d findings\n", page.URL, len(findings))
 				}
 			}
 			return nil
@@ -135,19 +158,25 @@ output formats including txt, json, csv, and markdown.`,
 		}
 
 		if ctx.Err() == context.DeadlineExceeded {
-			fmt.Fprintf(os.Stderr, "v0x: timeout reached after %s — writing partial results\n", cfg.Timeout)
+			fmt.Fprintf(os.Stderr, "rezz: timeout reached after %s — writing partial results\n", cfg.Timeout)
 		}
 
-		finalResult := agg.Finalize()
-		meta := output.OutputMeta{
-			TargetURL:    cfg.URL,
-			PagesCrawled: pagesCrawled,
+		// Write collected output for non-stream formats
+		switch cfg.Format {
+		case "json":
+			if err := output.JSONWriter(w, allFindings, cfg.URL, pagesCrawled); err != nil {
+				return fmt.Errorf("writing output: %w", err)
+			}
+		case "csv":
+			if err := output.CSVWriter(w, allFindings); err != nil {
+				return fmt.Errorf("writing output: %w", err)
+			}
 		}
 
-		if err := formatter.Write(w, finalResult, meta); err != nil {
-			return fmt.Errorf("writing output: %w", err)
+		if !cfg.Quiet {
+			fmt.Fprintf(os.Stderr, "rezz: done — %d pages crawled, %d findings\n",
+				pagesCrawled, len(allFindings))
 		}
-
 		return nil
 	},
 }
@@ -155,7 +184,7 @@ output formats including txt, json, csv, and markdown.`,
 // Execute runs the root command.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "v0x:", err)
+		fmt.Fprintln(os.Stderr, "rezz:", err)
 		os.Exit(1)
 	}
 }
@@ -165,16 +194,20 @@ func init() {
 
 	flags.StringVar(&cfg.URL, "url", "", "Target URL (required)")
 	flags.IntVar(&cfg.Depth, "depth", 2, "Max crawl depth")
-	flags.IntVar(&cfg.MinWordLength, "min-word-length", 3, "Minimum word length to collect")
-	flags.StringVar(&cfg.UserAgent, "user-agent", "v0x/1.0", "Custom User-Agent string")
+	flags.StringVar(&cfg.UserAgent, "user-agent", "rezz/1.0", "Custom User-Agent string")
 	flags.StringVar(&cfg.Output, "output", "", "Output file path (default: stdout)")
-	flags.StringVar(&cfg.Format, "format", "txt", "Output format: txt, json, csv, md")
+	flags.StringVar(&cfg.Format, "format", "stream", "Output format: stream|json|csv (default: stream)")
 	flags.BoolVar(&cfg.Headless, "headless", true, "Use headless browser (playwright-go)")
 	flags.BoolVar(&noHeadless, "no-headless", false, "Disable headless, use net/http instead")
 	flags.IntVar(&cfg.Delay, "delay", 500, "Delay in ms between requests")
 	flags.BoolVar(&cfg.Verbose, "verbose", false, "Verbose logging")
 	flags.BoolVar(&cfg.Quiet, "quiet", false, "Suppress banner and non-essential output")
 	flags.DurationVar(&cfg.Timeout, "timeout", 5*time.Minute, "Max crawl duration (0 = unlimited)")
+
+	flags.StringVar(&cfg.Patterns, "patterns", "api-keys,credentials,headers",
+		"Pattern kits to load, comma-separated (api-keys,credentials,endpoints,financial,javascript,headers,cloud,all)")
+	flags.StringVar(&cfg.CustomFile, "custom", "",
+		"Path to a custom patterns YAML file")
 
 	// Form-based login (playwright-only)
 	flags.StringVar(&cfg.AuthFormURL, "auth-form-url", "", "URL of the login form page")

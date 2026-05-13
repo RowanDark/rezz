@@ -1,0 +1,96 @@
+kit: endpoints
+patterns:
+  - name: Admin Panel Path
+    regex: '(?i)/(?:admin|administrator|wp-admin|controlpanel|manage|management|dashboard)(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: medium
+
+  - name: Debug Endpoint
+    regex: '(?i)/(?:debug|test|testing|dev|development|staging)(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: medium
+
+  - name: API Base Path
+    regex: '(?i)/api/v[0-9]+(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: low
+
+  - name: GraphQL Endpoint
+    regex: '(?i)/(?:graphql|gql)(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: low
+
+  - name: Swagger/OpenAPI UI
+    regex: '(?i)/(?:swagger(?:-ui)?|api-docs|openapi)(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: medium
+
+  - name: Health Check Endpoint
+    regex: '(?i)/(?:health|healthcheck|health-check|ping|status|alive|ready|readiness|liveness)(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: low
+
+  - name: Metrics Endpoint
+    regex: '(?i)/(?:metrics|prometheus|actuator)(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: medium
+
+  - name: Config Endpoint
+    regex: '(?i)/(?:config|configuration|settings|env|environment)(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: high
+
+  - name: Backup File
+    regex: '(?i)\.[a-zA-Z0-9]+\.(?:bak|backup|old|orig|copy|swp|tmp)(?:"|\x27|\s|$)'
+    category: Common Endpoints
+    severity: medium
+
+  - name: Git Exposed
+    regex: '(?i)/\.git/(?:config|HEAD|FETCH_HEAD|index)'
+    category: Common Endpoints
+    severity: high
+
+  - name: Environment File Exposed
+    regex: '(?i)/\.env(?:\.[a-z]+)?(?:"|\x27|\s|$)'
+    category: Common Endpoints
+    severity: high
+
+  - name: phpinfo Exposure
+    regex: '(?i)phpinfo\.php'
+    category: Common Endpoints
+    severity: high
+
+  - name: AWS Metadata Service
+    regex: '169\.254\.169\.254/latest/meta-data'
+    category: Common Endpoints
+    severity: high
+
+  - name: Kubernetes API Server
+    regex: '(?i)(?:kube-apiserver|localhost:8001|127\.0\.0\.1:8001)/api/v[0-9]'
+    category: Common Endpoints
+    severity: high
+
+  - name: Internal IP Address Reference
+    regex: '(?:10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|172\.(?:1[6-9]|2[0-9]|3[01])\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3})'
+    category: Common Endpoints
+    severity: medium
+
+  - name: Login / Authentication Endpoint
+    regex: '(?i)/(?:login|signin|sign-in|auth|authenticate|oauth|sso)(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: low
+
+  - name: Upload Endpoint
+    regex: '(?i)/(?:upload|uploads|file-upload|fileupload)(?:/|$|\?|"|\x27)'
+    category: Common Endpoints
+    severity: medium
+
+  - name: Kibana Dashboard
+    regex: '(?i)/app/kibana(?:#|/|\?|$)'
+    category: Common Endpoints
+    severity: medium
+
+  - name: Elasticsearch API
+    regex: '(?i):[0-9]{4,5}/(?:_cat|_cluster|_nodes|_search|_indices)'
+    category: Common Endpoints
+    severity: high
