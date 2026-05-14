@@ -1,7 +1,7 @@
 kit: headers
-# NOTE: Patterns using negative lookaheads (?!...) are not supported by Go's
-# RE2 regexp engine and have been omitted. Affected patterns: missing security
-# header checks (CSP, X-Frame-Options, Cache-Control, Set-Cookie flags).
+# Removed: Cache-Control Missing No-Store, Set-Cookie Missing Secure Flag,
+# Set-Cookie Missing HttpOnly Flag — all used negative lookaheads (?!...)
+# which are not supported by Go's RE2 regexp engine.
 patterns:
   - name: Server Version Disclosure
     regex: '(?i)Server:\s*(?:Apache|nginx|IIS|lighttpd|Jetty|Tomcat|Express|Caddy)[/\s][0-9]+\.[0-9]+'
