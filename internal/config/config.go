@@ -63,4 +63,8 @@ type Config struct {
 
 	// Summary
 	Summary bool // --summary: print severity breakdown after scan completes
+
+	// Endpoint probing
+	NoProbe bool // --no-probe: disable HEAD probing
+	Workers int  // concurrent probe workers (0 = default 10)
 }

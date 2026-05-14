@@ -5,16 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/RowanDark/rezz/internal/config"
 	"github.com/RowanDark/rezz/internal/crawler"
 	"github.com/RowanDark/rezz/internal/extractor"
+	"github.com/RowanDark/rezz/internal/fingerprint"
 	"github.com/RowanDark/rezz/internal/patterns"
 	"github.com/RowanDark/rezz/internal/scope"
 	"github.com/spf13/cobra"
@@ -53,6 +56,7 @@ func init() {
 	f.DurationVar(&mapCfg.Timeout, "timeout", 5*time.Minute, "Max crawl duration")
 	f.BoolVar(&mapCfg.NoColor, "no-color", false, "Disable ANSI color output")
 	f.BoolVar(&mapCfg.ForceColor, "color", false, "Force ANSI color output even when stdout is not a terminal")
+	f.BoolVar(&mapCfg.NoProbe, "no-probe", false, "Disable HEAD probing of discovered endpoints")
 
 	// Auth flags — same as root command
 	f.StringVar(&mapCfg.AuthFormURL, "auth-form-url", "", "Login form URL")
@@ -151,6 +155,8 @@ func runMap(cmd *cobra.Command, args []string) error {
 	}
 
 	em := extractor.NewEndpointMap()
+	fp := fingerprint.NewProfile()
+	pm := extractor.NewParamMap()
 	var pagesCrawled int
 
 	g, _ := errgroup.WithContext(ctx)
@@ -170,6 +176,16 @@ func runMap(cmd *cobra.Command, args []string) error {
 					}
 				}
 				em.Add(discovered)
+				for _, t := range fingerprint.FromHTML(page.HTML) {
+					fp.Add(t)
+				}
+				pm.AddFromURL(page.URL)
+				for _, e := range discovered {
+					pm.AddFromURL(e.URL)
+					if e.Type == extractor.TypeForm {
+						pm.AddFromFields(e.Fields)
+					}
+				}
 				if mapFormat == "stream" && !mapCfg.Quiet {
 					scriptColor := color.New(color.FgYellow)
 					fmt.Fprintf(w, "[%s]       %s\n", scriptColor.Sprint("SCRIPT"), page.URL)
@@ -195,6 +211,17 @@ func runMap(cmd *cobra.Command, args []string) error {
 
 			em.Add(discovered)
 
+			for _, t := range fingerprint.FromHTML(page.HTML) {
+				fp.Add(t)
+			}
+			pm.AddFromURL(page.URL)
+			for _, e := range discovered {
+				pm.AddFromURL(e.URL)
+				if e.Type == extractor.TypeForm {
+					pm.AddFromFields(e.Fields)
+				}
+			}
+
 			if mapFormat == "stream" && !mapCfg.Quiet {
 				for _, e := range discovered {
 					printEndpoint(w, e)
@@ -214,17 +241,49 @@ func runMap(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("pipeline: %w", err)
 	}
 
+	if !mapCfg.NoProbe {
+		if mapCfg.Verbose {
+			fmt.Fprintf(os.Stderr, "rezz: probing %d endpoints...\n", len(em.Endpoints))
+		}
+		probeEndpoints(em.Endpoints, eng, mapCfg.UserAgent, mapCfg.Workers, mapCfg.Verbose)
+	}
+
+	if len(fp.Technologies) > 0 {
+		fmt.Fprintln(os.Stderr, "── Technologies detected ──────────────")
+		for _, t := range fp.Technologies {
+			fmt.Fprintf(os.Stderr, "  %-22s [%s]\n", t.Name, t.Category)
+		}
+	}
+
+	params := pm.Params()
+	if len(params) > 0 {
+		fmt.Fprintln(os.Stderr, "── Parameters found ───────────────────")
+		fmt.Fprintf(os.Stderr, "  %s\n", strings.Join(params, ", "))
+	}
+
+	techs := fp.Technologies
+	if techs == nil {
+		techs = []fingerprint.Tech{}
+	}
+	if params == nil {
+		params = []string{}
+	}
+
 	switch mapFormat {
 	case "json":
 		payload := struct {
 			Target       string               `json:"target"`
 			PagesCrawled int                  `json:"pages_crawled"`
 			TotalFound   int                  `json:"total_found"`
+			Technologies []fingerprint.Tech   `json:"technologies"`
+			Parameters   []string             `json:"parameters"`
 			Endpoints    []extractor.Endpoint `json:"endpoints"`
 		}{
 			Target:       mapCfg.URL,
 			PagesCrawled: pagesCrawled,
 			TotalFound:   len(em.Endpoints),
+			Technologies: techs,
+			Parameters:   params,
 			Endpoints:    em.Endpoints,
 		}
 		enc := json.NewEncoder(w)
@@ -241,6 +300,21 @@ func runMap(cmd *cobra.Command, args []string) error {
 	fmt.Fprintf(os.Stderr, "rezz: map complete — %d pages crawled, %d endpoints found\n",
 		pagesCrawled, len(em.Endpoints))
 	return nil
+}
+
+func statusColor(code int) string {
+	c := color.New(color.FgGreen)
+	switch {
+	case code == 0:
+		return "   "
+	case code >= 500:
+		c = color.New(color.FgRed, color.Bold)
+	case code >= 400:
+		c = color.New(color.FgYellow)
+	case code >= 300:
+		c = color.New(color.FgCyan)
+	}
+	return c.Sprintf("%3d", code)
 }
 
 func printEndpoint(w io.Writer, e extractor.Endpoint) {
@@ -264,22 +338,86 @@ func printEndpoint(w io.Writer, e extractor.Endpoint) {
 		ld = labelDef{string(e.Type), color.New(color.Reset)}
 	}
 
+	statusStr := statusColor(e.StatusCode)
+
 	switch e.Type {
 	case extractor.TypeCrawled:
-		fmt.Fprintf(w, "[%s] %3d  %s\n",
-			ld.style.Sprint(ld.text), e.StatusCode, e.URL)
+		fmt.Fprintf(w, "[%s] %s  %s\n",
+			ld.style.Sprint(ld.text), statusStr, e.URL)
 	case extractor.TypeForm:
-		fmt.Fprintf(w, "[%s] %s %s",
-			ld.style.Sprint(ld.text), e.Method, e.URL)
+		fmt.Fprintf(w, "[%s] %s %s %s", ld.style.Sprint(ld.text), statusStr, e.Method, e.URL)
 		if len(e.Fields) > 0 {
 			fmt.Fprintf(w, "  %s", dim.Sprintf("fields: %s",
 				strings.Join(e.Fields, ", ")))
 		}
 		fmt.Fprintln(w)
 	default:
-		fmt.Fprintf(w, "[%s] %s  %s\n",
-			ld.style.Sprint(ld.text),
+		fmt.Fprintf(w, "[%s] %s %s  %s\n",
+			ld.style.Sprint(ld.text), statusStr,
 			e.URL,
 			dim.Sprintf("found in: %s", e.FoundIn))
 	}
+}
+
+func probeEndpoints(endpoints []extractor.Endpoint, eng *scope.Engine, userAgent string, workers int, verbose bool) {
+	type job struct {
+		idx int
+		url string
+	}
+	jobs := make(chan job, len(endpoints))
+	for i, e := range endpoints {
+		if e.StatusCode != 0 {
+			continue
+		}
+		if e.Type == extractor.TypeOutOfScope {
+			continue
+		}
+		if e.Type == extractor.TypeAsset {
+			continue
+		}
+		if !eng.InScope(e.URL) {
+			continue
+		}
+		jobs <- job{idx: i, url: e.URL}
+	}
+	close(jobs)
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	if workers <= 0 {
+		workers = 10
+	}
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				req, err := http.NewRequest(http.MethodHead, j.url, nil)
+				if err != nil {
+					continue
+				}
+				req.Header.Set("User-Agent", userAgent)
+				resp, err := client.Do(req)
+				if err != nil {
+					continue
+				}
+				resp.Body.Close()
+				mu.Lock()
+				endpoints[j.idx].StatusCode = resp.StatusCode
+				mu.Unlock()
+				if verbose {
+					fmt.Fprintf(os.Stderr, "rezz: probe %d %s\n", resp.StatusCode, j.url)
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }

@@ -3,6 +3,7 @@ package extractor
 import (
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
@@ -302,4 +303,52 @@ func (m *EndpointMap) AddCrawled(pageURL string, statusCode int) {
 		URL:        pageURL,
 		StatusCode: statusCode,
 	})
+}
+
+// ParamMap accumulates deduplicated query parameter and form field names.
+// Safe for concurrent use.
+type ParamMap struct {
+	mu     sync.Mutex
+	params map[string]struct{}
+}
+
+func NewParamMap() *ParamMap { return &ParamMap{params: make(map[string]struct{})} }
+
+func (m *ParamMap) AddFromURL(rawURL string) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for key := range u.Query() {
+		if len(key) <= 1 {
+			continue
+		}
+		m.params[key] = struct{}{}
+	}
+}
+
+func (m *ParamMap) AddFromFields(fields []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, f := range fields {
+		if idx := strings.LastIndex(f, ":"); idx >= 0 {
+			f = f[idx+1:]
+		}
+		if len(f) > 1 {
+			m.params[f] = struct{}{}
+		}
+	}
+}
+
+func (m *ParamMap) Params() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, 0, len(m.params))
+	for k := range m.params {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
