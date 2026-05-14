@@ -2,6 +2,7 @@ package patterns
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 
 	"go.uber.org/zap"
@@ -70,3 +71,37 @@ func (r *Registry) Load(kitNames []string) error {
 }
 
 func (r *Registry) Count() int { return len(r.patterns) }
+
+// LoadCustom loads patterns from a user-supplied YAML file.
+// The file must follow the same format as the embedded kit files.
+// Returns error if the file cannot be read or parsed.
+// Patterns that fail to compile are skipped with a Warn log.
+func (r *Registry) LoadCustom(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading custom patterns file %q: %w", path, err)
+	}
+	var kf kitFile
+	if err := yaml.Unmarshal(data, &kf); err != nil {
+		return fmt.Errorf("parsing custom patterns file %q: %w", path, err)
+	}
+	loaded := 0
+	for _, p := range kf.Patterns {
+		compiled, err := regexp.Compile(p.Regex)
+		if err != nil {
+			r.log.Warn("custom pattern failed to compile",
+				zap.String("pattern", p.Name),
+				zap.Error(err),
+			)
+			continue
+		}
+		p.compiled = compiled
+		r.patterns = append(r.patterns, p)
+		loaded++
+	}
+	r.log.Info("custom kit loaded",
+		zap.String("file", path),
+		zap.Int("patterns", loaded),
+	)
+	return nil
+}

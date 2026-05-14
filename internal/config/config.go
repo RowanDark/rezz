@@ -47,6 +47,12 @@ type Config struct {
 	Patterns   string // comma-separated kit names
 	CustomFile string // path to custom YAML
 
+	// Robots.txt
+	NoRobots bool // --no-robots: skip robots.txt fetching and checking
+
+	// Rate limiting
+	Jitter float64 // --jitter: fraction of delay to add randomly (default 0.5)
+
 	// Deduplication
 	DedupGlobal bool // --dedup-global: deduplicate by match+pattern across all URLs
 	NoDedup     bool // --no-dedup: disable all deduplication
