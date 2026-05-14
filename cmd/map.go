@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/RowanDark/rezz/internal/config"
 	"github.com/RowanDark/rezz/internal/crawler"
 	"github.com/RowanDark/rezz/internal/extractor"
@@ -45,6 +46,8 @@ func init() {
 	f.BoolVar(&mapCfg.Verbose, "verbose", false, "Verbose logging")
 	f.BoolVar(&mapCfg.Quiet, "quiet", false, "Suppress banner")
 	f.DurationVar(&mapCfg.Timeout, "timeout", 5*time.Minute, "Max crawl duration")
+	f.BoolVar(&mapCfg.NoColor, "no-color", false, "Disable ANSI color output")
+	f.BoolVar(&mapCfg.ForceColor, "color", false, "Force ANSI color output even when stdout is not a terminal")
 
 	// Auth flags — same as root command
 	f.StringVar(&mapCfg.AuthFormURL, "auth-form-url", "", "Login form URL")
@@ -61,6 +64,12 @@ func init() {
 func runMap(cmd *cobra.Command, args []string) error {
 	if mapNoHeadless {
 		mapCfg.Headless = false
+	}
+
+	if mapCfg.NoColor {
+		color.NoColor = true
+	} else if mapCfg.ForceColor {
+		color.NoColor = false
 	}
 
 	if !mapCfg.Quiet {
@@ -131,7 +140,8 @@ func runMap(cmd *cobra.Command, args []string) error {
 				}
 				em.Add(discovered)
 				if mapFormat == "stream" && !mapCfg.Quiet {
-					fmt.Fprintf(w, "[SCRIPT]       %s\n", page.URL)
+					scriptColor := color.New(color.FgYellow)
+					fmt.Fprintf(w, "[%s]       %s\n", scriptColor.Sprint("SCRIPT"), page.URL)
 					for _, e := range discovered {
 						printEndpoint(w, e)
 					}
@@ -203,21 +213,42 @@ func runMap(cmd *cobra.Command, args []string) error {
 }
 
 func printEndpoint(w io.Writer, e extractor.Endpoint) {
+	type labelDef struct {
+		text  string
+		style *color.Color
+	}
+	labels := map[extractor.EndpointType]labelDef{
+		extractor.TypeCrawled:    {"CRAWLED    ", color.New(color.FgGreen)},
+		extractor.TypeForm:       {"FORM       ", color.New(color.FgCyan, color.Bold)},
+		extractor.TypeJSEndpoint: {"JS-ENDPOINT", color.New(color.FgYellow, color.Bold)},
+		extractor.TypeScript:     {"SCRIPT     ", color.New(color.FgYellow)},
+		extractor.TypeAsset:      {"ASSET      ", color.New(color.FgHiBlack)},
+		extractor.TypeOutOfScope: {"OUT-OF-SCOPE", color.New(color.FgHiBlack)},
+		extractor.TypeSensitive:  {"SENSITIVE  ", color.New(color.FgRed, color.Bold)},
+	}
+
+	dim := color.New(color.FgHiBlack)
+	ld, ok := labels[e.Type]
+	if !ok {
+		ld = labelDef{string(e.Type), color.New(color.Reset)}
+	}
+
 	switch e.Type {
 	case extractor.TypeCrawled:
-		fmt.Fprintf(w, "[CRAWLED]      %d  %s\n", e.StatusCode, e.URL)
+		fmt.Fprintf(w, "[%s] %3d  %s\n",
+			ld.style.Sprint(ld.text), e.StatusCode, e.URL)
 	case extractor.TypeForm:
-		fmt.Fprintf(w, "[FORM]         %s %s  fields: %s\n",
-			e.Method, e.URL, strings.Join(e.Fields, ", "))
-	case extractor.TypeJSEndpoint:
-		fmt.Fprintf(w, "[JS-ENDPOINT]      %s  found in: %s\n", e.URL, e.FoundIn)
-	case extractor.TypeAsset:
-		fmt.Fprintf(w, "[ASSET]            %s  found in: %s\n", e.URL, e.FoundIn)
-	case extractor.TypeOutOfScope:
-		fmt.Fprintf(w, "[OUT-OF-SCOPE]     %s  found in: %s\n", e.URL, e.FoundIn)
-	case extractor.TypeSensitive:
-		fmt.Fprintf(w, "[SENSITIVE]        %s  found in: %s\n", e.URL, e.FoundIn)
-	case extractor.TypeScript:
-		fmt.Fprintf(w, "[SCRIPT]           %s\n", e.URL)
+		fmt.Fprintf(w, "[%s] %s %s",
+			ld.style.Sprint(ld.text), e.Method, e.URL)
+		if len(e.Fields) > 0 {
+			fmt.Fprintf(w, "  %s", dim.Sprintf("fields: %s",
+				strings.Join(e.Fields, ", ")))
+		}
+		fmt.Fprintln(w)
+	default:
+		fmt.Fprintf(w, "[%s] %s  %s\n",
+			ld.style.Sprint(ld.text),
+			e.URL,
+			dim.Sprintf("found in: %s", e.FoundIn))
 	}
 }

@@ -50,4 +50,11 @@ type Config struct {
 	// Deduplication
 	DedupGlobal bool // --dedup-global: deduplicate by match+pattern across all URLs
 	NoDedup     bool // --no-dedup: disable all deduplication
+
+	// Output color control
+	NoColor    bool // --no-color: disable ANSI color output
+	ForceColor bool // --color: force color even when not a terminal
+
+	// Summary
+	Summary bool // --summary: print severity breakdown after scan completes
 }

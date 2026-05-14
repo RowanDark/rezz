@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/term"
@@ -44,6 +45,12 @@ var rootCmd = &cobra.Command{
 using embedded regex pattern kits. It supports headless browser crawling via
 playwright-go and output formats including stream, json, and csv.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if cfg.NoColor {
+			color.NoColor = true
+		} else if cfg.ForceColor {
+			color.NoColor = false
+		}
+
 		if !cfg.Quiet && term.IsTerminal(int(os.Stdout.Fd())) {
 			fmt.Fprint(os.Stderr, banner)
 		}
@@ -199,20 +206,66 @@ playwright-go and output formats including stream, json, and csv.`,
 					pagesCrawled, store.Count())
 			}
 		}
+
+		if cfg.Summary {
+			findings := store.Findings()
+			high, medium, low := 0, 0, 0
+			for _, f := range findings {
+				switch f.Severity {
+				case "high":
+					high++
+				case "medium":
+					medium++
+				default:
+					low++
+				}
+			}
+			highColor := color.New(color.FgRed, color.Bold)
+			medColor := color.New(color.FgYellow, color.Bold)
+			lowColor := color.New(color.FgCyan, color.Bold)
+			boldColor := color.New(color.Bold)
+
+			fmt.Fprintln(os.Stderr)
+			fmt.Fprintf(os.Stderr, "%s\n", boldColor.Sprint("── Summary ──────────────────"))
+			fmt.Fprintf(os.Stderr, "  %s  %d\n", highColor.Sprint("HIGH  "), high)
+			fmt.Fprintf(os.Stderr, "  %s  %d\n", medColor.Sprint("MEDIUM"), medium)
+			fmt.Fprintf(os.Stderr, "  %s  %d\n", lowColor.Sprint("LOW   "), low)
+			fmt.Fprintf(os.Stderr, "  %s  %d\n", boldColor.Sprint("TOTAL "), high+medium+low)
+			fmt.Fprintln(os.Stderr)
+		}
+
 		return nil
 	},
 }
 
 func printFinding(w io.Writer, f patterns.SeenFinding) {
-	fmt.Fprintf(w, "[%s] %s — %s\n    URL: %s\n    Match: %s\n",
-		severityLabel(f.Severity),
-		f.Pattern,
-		f.Category,
-		f.URL,
-		f.Match,
+	var labelColor *color.Color
+	switch f.Severity {
+	case "high":
+		labelColor = color.New(color.FgRed, color.Bold)
+	case "medium":
+		labelColor = color.New(color.FgYellow, color.Bold)
+	default:
+		labelColor = color.New(color.FgCyan, color.Bold)
+	}
+
+	label := severityLabel(f.Severity)
+	patternBold := color.New(color.Bold)
+	categoryColor := color.New(color.FgWhite)
+	urlColor := color.New(color.FgHiBlack)
+	matchColor := color.New(color.FgWhite, color.Bold)
+	dimColor := color.New(color.FgHiBlack)
+
+	fmt.Fprintf(w, "[%s] %s — %s\n",
+		labelColor.Sprint(label),
+		patternBold.Sprint(f.Pattern),
+		categoryColor.Sprint(f.Category),
 	)
+	fmt.Fprintf(w, "    URL:   %s\n", urlColor.Sprint(f.URL))
+	fmt.Fprintf(w, "    Match: %s\n", matchColor.Sprint(f.Match))
 	if len(f.AlsoFoundOn) > 0 {
-		fmt.Fprintf(w, "    Also found on: %d other page(s)\n", len(f.AlsoFoundOn))
+		fmt.Fprintf(w, "    %s\n",
+			dimColor.Sprintf("Also found on %d other page(s)", len(f.AlsoFoundOn)))
 	}
 	fmt.Fprintln(w)
 }
@@ -281,6 +334,13 @@ func init() {
 	// Bearer token / custom header
 	flags.StringVar(&cfg.AuthBearer, "auth-bearer", "", "Bearer token for Authorization header")
 	flags.StringVar(&cfg.AuthHeader, "auth-header", "", `Custom auth header in "Name: Value" format`)
+
+	// Color control
+	flags.BoolVar(&cfg.NoColor, "no-color", false, "Disable ANSI color output")
+	flags.BoolVar(&cfg.ForceColor, "color", false, "Force ANSI color output even when stdout is not a terminal")
+
+	// Summary
+	flags.BoolVar(&cfg.Summary, "summary", false, "Print severity breakdown summary after scan completes")
 
 	// Scope control
 	flags.StringVar(&cfg.Scope, "scope", "",
