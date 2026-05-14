@@ -1,16 +1,5 @@
 # rezz
 
-┌─────────────────────────────────────┐
-│  ██████╗ ███████╗███████╗███████╗   │
-│  ██╔══██╗██╔════╝╚══███╔╝╚══███╔╝   │
-│  ██████╔╝█████╗    ███╔╝   ███╔╝    │
-│  ██╔══██╗██╔══╝   ███╔╝   ███╔╝     │
-│  ██║  ██║███████╗███████╗███████╗   │
-│  ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝   │
-│  secret scanner  v1.0.0             │
-│  github.com/RowanDark/rezz          │
-└─────────────────────────────────────┘
-
 A web crawler and secret scanner for authorized security testing. Crawls target sites using either a headless Chromium browser or a lightweight HTTP client, scans discovered pages and scripts for secrets and sensitive data using embedded regex pattern kits, and maps all reachable endpoints.
 
 > **Legal notice**: rezz is intended for authorized security testing only. Do not use against systems you do not have permission to test.
