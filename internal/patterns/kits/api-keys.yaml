@@ -46,12 +46,12 @@ patterns:
     severity: low
 
   - name: Twilio Account SID
-    regex: 'AC[a-zA-Z0-9]{32}'
+    regex: '\bAC[a-zA-Z0-9]{32}\b'
     category: API Keys & Secrets
     severity: high
 
   - name: Twilio Auth Token
-    regex: 'SK[a-zA-Z0-9]{32}'
+    regex: '\bSK[a-zA-Z0-9]{32}\b'
     category: API Keys & Secrets
     severity: high
 
@@ -125,10 +125,10 @@ patterns:
     category: API Keys & Secrets
     severity: high
 
-  - name: HubSpot API Key
-    regex: '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+  - name: HubSpot Private App Token
+    regex: 'pat-[a-z]{2}[0-9]+-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
     category: API Keys & Secrets
-    severity: low
+    severity: high
 
   - name: Datadog API Key
     regex: '(?i)datadog.{0,30}[a-f0-9]{32}'
@@ -136,7 +136,7 @@ patterns:
     severity: high
 
   - name: OpenAI API Key
-    regex: 'sk-[a-zA-Z0-9]{48}'
+    regex: '\bsk-(?:proj|org)?-?[a-zA-Z0-9T]{48,}\b'
     category: API Keys & Secrets
     severity: high
 
