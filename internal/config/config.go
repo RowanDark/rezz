@@ -46,4 +46,8 @@ type Config struct {
 	// Pattern scanning
 	Patterns   string // comma-separated kit names
 	CustomFile string // path to custom YAML
+
+	// Deduplication
+	DedupGlobal bool // --dedup-global: deduplicate by match+pattern across all URLs
+	NoDedup     bool // --no-dedup: disable all deduplication
 }
