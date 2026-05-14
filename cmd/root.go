@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -124,25 +125,34 @@ playwright-go and output formats including stream, json, and csv.`,
 			}
 		}()
 
+		// Resolve dedup mode
+		dedupMode := patterns.DedupeExact // default
+		if cfg.NoDedup {
+			dedupMode = patterns.DedupeNone
+		} else if cfg.DedupGlobal {
+			dedupMode = patterns.DedupeGlobal
+		}
+		store := patterns.NewFindingStore(dedupMode)
+
 		c := crawler.New(cfg)
 		pages, err := c.Crawl(ctx, cfg)
 		if err != nil {
 			return fmt.Errorf("starting crawl: %w", err)
 		}
 
-		var allFindings []patterns.Finding
 		var pagesCrawled int
 
 		g, _ := errgroup.WithContext(ctx)
 		g.Go(func() error {
 			for page := range pages {
-				// Page.HTML contains full rendered content; headers not exposed yet.
 				headerStr := ""
 				findings := reg.Match(page.HTML, headerStr, page.URL, 200, false)
 				for _, f := range findings {
-					allFindings = append(allFindings, f)
-					if cfg.Format == "stream" && !cfg.Quiet {
-						output.StreamWriter(f)
+					if store.Add(f) {
+						if cfg.Format == "stream" && !cfg.Quiet {
+							all := store.Findings()
+							printFinding(w, all[store.Count()-1])
+						}
 					}
 				}
 				pagesCrawled++
@@ -164,21 +174,58 @@ playwright-go and output formats including stream, json, and csv.`,
 		// Write collected output for non-stream formats
 		switch cfg.Format {
 		case "json":
-			if err := output.JSONWriter(w, allFindings, cfg.URL, pagesCrawled); err != nil {
+			jsonFindings := make([]output.JSONFinding, 0, store.Count())
+			for _, sf := range store.Findings() {
+				jsonFindings = append(jsonFindings, output.JSONFinding{
+					Finding:     sf.Finding,
+					AlsoFoundOn: sf.AlsoFoundOn,
+				})
+			}
+			if err := output.JSONWriter(w, jsonFindings, cfg.URL, pagesCrawled); err != nil {
 				return fmt.Errorf("writing output: %w", err)
 			}
 		case "csv":
-			if err := output.CSVWriter(w, allFindings); err != nil {
+			if err := output.CSVWriter(w, store.Findings()); err != nil {
 				return fmt.Errorf("writing output: %w", err)
 			}
 		}
 
 		if !cfg.Quiet {
-			fmt.Fprintf(os.Stderr, "rezz: done — %d pages crawled, %d findings\n",
-				pagesCrawled, len(allFindings))
+			if dedupMode != patterns.DedupeNone {
+				fmt.Fprintf(os.Stderr, "rezz: done — %d pages crawled, %d findings (deduped)\n",
+					pagesCrawled, store.Count())
+			} else {
+				fmt.Fprintf(os.Stderr, "rezz: done — %d pages crawled, %d findings\n",
+					pagesCrawled, store.Count())
+			}
 		}
 		return nil
 	},
+}
+
+func printFinding(w io.Writer, f patterns.SeenFinding) {
+	fmt.Fprintf(w, "[%s] %s — %s\n    URL: %s\n    Match: %s\n",
+		severityLabel(f.Severity),
+		f.Pattern,
+		f.Category,
+		f.URL,
+		f.Match,
+	)
+	if len(f.AlsoFoundOn) > 0 {
+		fmt.Fprintf(w, "    Also found on: %d other page(s)\n", len(f.AlsoFoundOn))
+	}
+	fmt.Fprintln(w)
+}
+
+func severityLabel(s string) string {
+	switch s {
+	case "high":
+		return "HIGH  "
+	case "medium":
+		return "MEDIUM"
+	default:
+		return "LOW   "
+	}
 }
 
 // Execute runs the root command.
@@ -208,6 +255,12 @@ func init() {
 		"Pattern kits to load, comma-separated (api-keys,credentials,endpoints,financial,javascript,headers,cloud,all)")
 	flags.StringVar(&cfg.CustomFile, "custom", "",
 		"Path to a custom patterns YAML file")
+
+	// Deduplication
+	flags.BoolVar(&cfg.DedupGlobal, "dedup-global", false,
+		"Deduplicate findings globally — show each unique match once regardless of how many pages it appears on")
+	flags.BoolVar(&cfg.NoDedup, "no-dedup", false,
+		"Disable all deduplication — emit every match raw")
 
 	// Form-based login (playwright-only)
 	flags.StringVar(&cfg.AuthFormURL, "auth-form-url", "", "URL of the login form page")
