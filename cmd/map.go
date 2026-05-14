@@ -15,8 +15,10 @@ import (
 	"github.com/RowanDark/rezz/internal/config"
 	"github.com/RowanDark/rezz/internal/crawler"
 	"github.com/RowanDark/rezz/internal/extractor"
+	"github.com/RowanDark/rezz/internal/patterns"
 	"github.com/RowanDark/rezz/internal/scope"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -36,6 +38,9 @@ func init() {
 	f.StringVar(&mapCfg.URL, "url", "", "Target URL (required)")
 	f.IntVar(&mapCfg.Depth, "depth", 2, "Max crawl depth")
 	f.IntVar(&mapCfg.Delay, "delay", 500, "Delay in ms between requests")
+	f.Float64Var(&mapCfg.Jitter, "jitter", 0.5,
+		"Random jitter factor applied to --delay (0 = no jitter, 1.0 = up to 2x delay)")
+	f.BoolVar(&mapCfg.NoRobots, "no-robots", false, "Skip robots.txt fetching and checking")
 	f.StringVar(&mapCfg.UserAgent, "user-agent", "rezz/1.0", "User-Agent string")
 	f.BoolVar(&mapCfg.Headless, "headless", true, "Use headless browser")
 	f.BoolVar(&mapNoHeadless, "no-headless", false, "Disable headless, use net/http")
@@ -56,12 +61,19 @@ func init() {
 	f.StringVar(&mapCfg.AuthCookie, "auth-cookie", "", "Cookie string to inject")
 	f.StringVar(&mapCfg.AuthBearer, "auth-bearer", "", "Bearer token")
 	f.StringVar(&mapCfg.AuthHeader, "auth-header", "", "Custom auth header")
+	f.StringVar(&mapCfg.Patterns, "patterns", "endpoints,javascript",
+		"Pattern kits for endpoint classification (api-keys,credentials,endpoints,financial,javascript,headers,cloud,all)")
+	f.StringVar(&mapCfg.CustomFile, "custom", "",
+		"Path to a custom patterns YAML file")
 
 	mapCmd.MarkFlagRequired("url") //nolint:errcheck
 	rootCmd.AddCommand(mapCmd)
 }
 
 func runMap(cmd *cobra.Command, args []string) error {
+	if mapCfg.Jitter < 0 {
+		return fmt.Errorf("--jitter must be >= 0 (got %.2f)", mapCfg.Jitter)
+	}
 	if mapNoHeadless {
 		mapCfg.Headless = false
 	}
@@ -80,6 +92,25 @@ func runMap(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("scope: %w", err)
 	}
+
+	mapLog := zap.NewNop()
+	if mapCfg.Verbose {
+		mapLog, _ = zap.NewProduction()
+	}
+	kitNames := strings.Split(mapCfg.Patterns, ",")
+	for i, k := range kitNames {
+		kitNames[i] = strings.TrimSpace(k)
+	}
+	reg := patterns.New(mapLog)
+	if err := reg.Load(kitNames); err != nil {
+		return fmt.Errorf("patterns: %w", err)
+	}
+	if mapCfg.CustomFile != "" {
+		if err := reg.LoadCustom(mapCfg.CustomFile); err != nil {
+			return fmt.Errorf("custom patterns: %w", err)
+		}
+	}
+	_ = reg // patterns registry available for future endpoint classification
 
 	base, err := url.Parse(mapCfg.URL)
 	if err != nil {

@@ -3,6 +3,7 @@
 build:
 	go build -o rezz ./...
 
+# Install Chromium for headless crawling (required for default mode)
 install-browsers:
 	go run github.com/playwright-community/playwright-go/cmd/playwright install --with-deps chromium
 

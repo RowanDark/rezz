@@ -44,6 +44,12 @@ var rootCmd = &cobra.Command{
 	Long: `rezz crawls web pages and scans for secrets, credentials, and sensitive data
 using embedded regex pattern kits. It supports headless browser crawling via
 playwright-go and output formats including stream, json, and csv.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if cfg.Jitter < 0 {
+			return fmt.Errorf("--jitter must be >= 0 (got %.2f)", cfg.Jitter)
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if cfg.NoColor {
 			color.NoColor = true
@@ -97,6 +103,11 @@ playwright-go and output formats including stream, json, and csv.`,
 		reg := patterns.New(log)
 		if err := reg.Load(kitNames); err != nil {
 			return fmt.Errorf("patterns: %w", err)
+		}
+		if cfg.CustomFile != "" {
+			if err := reg.LoadCustom(cfg.CustomFile); err != nil {
+				return fmt.Errorf("custom patterns: %w", err)
+			}
 		}
 		if cfg.Verbose {
 			fmt.Fprintf(os.Stderr, "rezz: loaded %d patterns\n", reg.Count())
@@ -300,6 +311,9 @@ func init() {
 	flags.BoolVar(&cfg.Headless, "headless", true, "Use headless browser (playwright-go)")
 	flags.BoolVar(&noHeadless, "no-headless", false, "Disable headless, use net/http instead")
 	flags.IntVar(&cfg.Delay, "delay", 500, "Delay in ms between requests")
+	flags.Float64Var(&cfg.Jitter, "jitter", 0.5,
+		"Random jitter factor applied to --delay (0 = no jitter, 1.0 = up to 2x delay)")
+	flags.BoolVar(&cfg.NoRobots, "no-robots", false, "Skip robots.txt fetching and checking")
 	flags.BoolVar(&cfg.Verbose, "verbose", false, "Verbose logging")
 	flags.BoolVar(&cfg.Quiet, "quiet", false, "Suppress banner and non-essential output")
 	flags.DurationVar(&cfg.Timeout, "timeout", 5*time.Minute, "Max crawl duration (0 = unlimited)")

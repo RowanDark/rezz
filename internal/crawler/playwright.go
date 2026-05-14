@@ -10,6 +10,8 @@ import (
 
 	"github.com/RowanDark/rezz/internal/auth"
 	"github.com/RowanDark/rezz/internal/config"
+	"github.com/RowanDark/rezz/internal/ratelimit"
+	"github.com/RowanDark/rezz/internal/robots"
 	"github.com/RowanDark/rezz/internal/scope"
 	"github.com/playwright-community/playwright-go"
 )
@@ -73,6 +75,17 @@ func (c *PlaywrightCrawler) Crawl(ctx context.Context, cfg config.Config) (<-cha
 		defer browser.Close()
 		defer pw.Stop() //nolint:errcheck
 
+		var rb *robots.Checker
+		if !cfg.NoRobots {
+			rb = robots.New(cfg.URL, cfg.UserAgent)
+			if cfg.Verbose {
+				u, _ := url.Parse(cfg.URL)
+				fmt.Fprintf(os.Stderr, "rezz: fetched robots.txt for %s\n", u.Host)
+			}
+		} else {
+			rb = robots.NewPermissive()
+		}
+
 		var visited sync.Map
 		queue := []queueItem{{url: cfg.URL, depth: 0}}
 
@@ -87,6 +100,13 @@ func (c *PlaywrightCrawler) Crawl(ctx context.Context, cfg config.Config) (<-cha
 			queue = queue[1:]
 
 			if _, seen := visited.LoadOrStore(item.url, struct{}{}); seen {
+				continue
+			}
+
+			if !rb.Allowed(item.url) {
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "rezz: skip %s (robots.txt)\n", item.url)
+				}
 				continue
 			}
 
@@ -153,11 +173,7 @@ func (c *PlaywrightCrawler) Crawl(ctx context.Context, cfg config.Config) (<-cha
 				}
 			}
 
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(delay):
-			}
+			ratelimit.Wait(ctx, delay, cfg.Jitter)
 		}
 	}()
 

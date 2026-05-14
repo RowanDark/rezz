@@ -13,6 +13,8 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/RowanDark/rezz/internal/auth"
 	"github.com/RowanDark/rezz/internal/config"
+	"github.com/RowanDark/rezz/internal/ratelimit"
+	"github.com/RowanDark/rezz/internal/robots"
 	"github.com/RowanDark/rezz/internal/scope"
 )
 
@@ -48,6 +50,17 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 	go func() {
 		defer close(pages)
 
+		var rb *robots.Checker
+		if !cfg.NoRobots {
+			rb = robots.New(cfg.URL, cfg.UserAgent)
+			if cfg.Verbose {
+				u, _ := url.Parse(cfg.URL)
+				fmt.Fprintf(os.Stderr, "rezz: fetched robots.txt for %s\n", u.Host)
+			}
+		} else {
+			rb = robots.NewPermissive()
+		}
+
 		var visited sync.Map
 		queue := []queueItem{{url: cfg.URL, depth: 0}}
 
@@ -62,6 +75,13 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 			queue = queue[1:]
 
 			if _, seen := visited.LoadOrStore(item.url, struct{}{}); seen {
+				continue
+			}
+
+			if !rb.Allowed(item.url) {
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "rezz: skip %s (robots.txt)\n", item.url)
+				}
 				continue
 			}
 
@@ -143,19 +163,15 @@ func (c *HTTPCrawler) Crawl(ctx context.Context, cfg config.Config) (<-chan Page
 				}
 			}
 
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(delay):
-			}
+			ratelimit.Wait(ctx, delay, cfg.Jitter)
 		}
 	}()
 
 	return pages, nil
 }
 
-// extractLinks parses <a href> links from html, resolves them against pageURL,
-// and returns only in-scope absolute URLs.
+// extractLinks parses <a href> links and <meta http-equiv="refresh"> redirects
+// from html, resolves them against pageURL, and returns only in-scope absolute URLs.
 func extractLinks(html, pageURL string, eng *scope.Engine, verbose bool) []string {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -205,6 +221,49 @@ func extractLinks(html, pageURL string, eng *scope.Engine, verbose bool) []strin
 		}
 		seen[key] = struct{}{}
 		links = append(links, key)
+	})
+
+	// Extract meta-refresh redirect URLs
+	doc.Find("meta[http-equiv]").Each(func(_ int, s *goquery.Selection) {
+		equiv, _ := s.Attr("http-equiv")
+		if !strings.EqualFold(equiv, "refresh") {
+			return
+		}
+		content, exists := s.Attr("content")
+		if !exists {
+			return
+		}
+		// content format: "0;url=/path" or "0; URL=/path"
+		parts := strings.SplitN(content, ";", 2)
+		if len(parts) != 2 {
+			return
+		}
+		urlPart := strings.TrimSpace(parts[1])
+		// Strip "url=" or "URL=" prefix
+		if idx := strings.Index(strings.ToLower(urlPart), "url="); idx >= 0 {
+			urlPart = urlPart[idx+4:]
+		}
+		urlPart = strings.Trim(urlPart, `"' `)
+		if urlPart == "" {
+			return
+		}
+		ref, err := url.Parse(urlPart)
+		if err != nil {
+			return
+		}
+		resolved := page.ResolveReference(ref)
+		resolved.Fragment = ""
+		if resolved.Scheme != "http" && resolved.Scheme != "https" {
+			return
+		}
+		if !eng.InScope(resolved.String()) {
+			return
+		}
+		key := resolved.String()
+		if _, exists := seen[key]; !exists {
+			seen[key] = struct{}{}
+			links = append(links, key)
+		}
 	})
 
 	return links
