@@ -29,8 +29,8 @@ const banner = `
 │  ██╔══██╗██╔══╝   ███╔╝   ███╔╝     │
 │  ██║  ██║███████╗███████╗███████╗   │
 │  ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝   │
-│  secret scanner  v1.0.0              │
-│  github.com/RowanDark/rezz           │
+│  secret scanner  v1.0.0             │
+│  github.com/RowanDark/rezz          │
 └─────────────────────────────────────┘
 `
 
